@@ -195,7 +195,7 @@ class Worker(QObject):
         try:
             result = self.ipc.send(self.request)
             self.finished.emit(result)
-        except Exception as e:
+        except BaseException as e:
             self.error.emit(str(e))
 
 
@@ -422,16 +422,26 @@ class GiteoPanel(QMainWindow):
         worker = Worker(self.ipc, request)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.finished.connect(lambda result: self._on_worker_done(thread, worker, callback, result))
-        worker.error.connect(lambda err: self._on_worker_error(thread, worker, err))
+        # Qt.QueuedConnection ensures callback runs on main thread (avoids SIGABRT on macOS)
+        worker.finished.connect(
+            lambda result: self._on_worker_done(thread, worker, callback, result),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        worker.error.connect(
+            lambda err: self._on_worker_error(thread, worker, err),
+            Qt.ConnectionType.QueuedConnection,
+        )
         self._threads.append((thread, worker))
         thread.start()
 
     def _on_worker_done(self, thread, worker, callback, result):
-        thread.quit()
-        thread.wait()
-        self._threads = [(t, w) for t, w in self._threads if t is not thread]
-        callback(result)
+        try:
+            thread.quit()
+            thread.wait(2000)
+            self._threads = [(t, w) for t, w in self._threads if t is not thread]
+            callback(result)
+        except Exception as e:
+            self.append_log(f"Error: {e}", ERROR)
 
     def _on_worker_error(self, thread, worker, err):
         thread.quit()
@@ -511,16 +521,19 @@ class GiteoPanel(QMainWindow):
         self._run_async({"action": "switch_branch", "branch": target}, self._on_switch_result)
 
     def _on_switch_result(self, result):
-        if result.get("ok"):
-            branch = result.get("branch", "?")
-            restored = result.get("restored", False)
-            msg = f"Switched to '{branch}'."
-            if restored:
-                msg += " Timeline restored."
-            self.append_log(msg, SUCCESS)
-            self.refresh_branch()
-        else:
-            self.append_log(f"Error: {result.get('error', '?')}", ERROR)
+        try:
+            if result.get("ok"):
+                branch = result.get("branch", "?")
+                restored = result.get("restored", False)
+                msg = f"Switched to '{branch}'."
+                if restored:
+                    msg += " Timeline restored."
+                self.append_log(msg, SUCCESS)
+                self.refresh_branch()
+            else:
+                self.append_log(f"Error: {result.get('error', '?')}", ERROR)
+        except Exception as e:
+            self.append_log(f"Error: {e}", ERROR)
 
     def on_merge(self):
         self.append_log("Loading branches...")

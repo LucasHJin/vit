@@ -136,10 +136,14 @@ def handle_request(request, resolve_app, project_dir):
 
             project = resolve_app.GetProjectManager().GetCurrentProject()
             timeline = project.GetCurrentTimeline()
-            if timeline:
+            if not project or not timeline:
+                return {"ok": True, "branch": target, "restored": False}
+
+            try:
                 deserialize_timeline(timeline, project, project_dir)
-                return {"ok": True, "branch": target, "restored": True}
-            return {"ok": True, "branch": target, "restored": False}
+            except Exception as e:
+                return {"ok": False, "error": f"Restore failed: {e}"}
+            return {"ok": True, "branch": target, "restored": True}
 
         elif action == "merge":
             from giteo.core import (
