@@ -32,7 +32,7 @@ Each collaborator works on a branch. Giteo serializes the NLE's timeline state i
 - **Domain-split JSON** — separate files for cuts, color, audio, effects, markers. Different roles = different files = clean merges.
 - **Snapshot-based** — each commit captures full timeline state. Simpler than event sourcing, works naturally with git.
 - **CLI-first** — no GUI overhead. Resolve plugin scripts serve as in-NLE UI.
-- **Additive integration** — work with existing NLEs (DaVinci Resolve, Final Cut Pro), don't replace them
+- **Additive integration** — work with existing NLEs (DaVinci Resolve), don't replace them
 - **Every phase is demo-able** — the system is useful at every stage of completion
 
 ---
@@ -40,30 +40,31 @@ Each collaborator works on a branch. Giteo serializes the NLE's timeline state i
 ## System Architecture
 
 ```
-Path A: DaVinci Resolve (primary)              Path B: Final Cut Pro X (via FCPXML)
-┌────────────────────────────┐                  ┌────────────────────────┐
-│  DaVinci Resolve (Free)    │                  │  Final Cut Pro X       │
-│  Workspace > Scripts menu  │                  │  File > Export XML     │
-│  ┌──────────────────────┐  │                  │  → myproject.fcpxml    │
-│  │ Giteo: Save Version  │  │                  └──────────┬─────────────┘
-│  │ Giteo: New Branch    │  │                             │
-│  │ Giteo: Switch Branch │  │                             ▼
-│  │ Giteo: Merge         │  │                  ┌────────────────────────┐
-│  └──────────┬───────────┘  │                  │ giteo import foo.fcpxml│
-└─────────────┼──────────────┘                  │ (OpenTimelineIO reads) │
-              │ Resolve API                     └──────────┬─────────────┘
-              ▼                                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  giteo-core (Python)                                        │
-│                                                             │
-│  Serializers:    resolve.py  |  fcpxml.py  → json_writer.py │
-│  Deserializers:  resolve.py  |  fcpxml.py                   │
-│  Git wrapper:    core.py (subprocess → system git)          │
-│  Diff formatter: differ.py (human-readable timeline diffs)  │
-│  CLI:            cli.py (argparse)                          │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ subprocess
-                       ▼
+┌──────────────────────────────────┐
+│  DaVinci Resolve (Free)          │
+│  Workspace > Scripts menu        │
+│  ┌────────────────────────────┐  │
+│  │ Giteo: Save Version        │  │
+│  │ Giteo: New Branch          │  │
+│  │ Giteo: Switch Branch       │  │
+│  │ Giteo: Merge               │  │
+│  │ Giteo: Show History        │  │
+│  └──────────┬─────────────────┘  │
+└─────────────┼────────────────────┘
+              │ Resolve Python API
+              ▼
+┌──────────────────────────────────┐
+│  giteo-core (Python)             │
+│                                  │
+│  Serializer:    resolve.py       │
+│  Deserializer:  resolve.py       │
+│  JSON writer:   json_writer.py   │
+│  Git wrapper:   core.py          │
+│  Diff formatter: differ.py       │
+│  CLI:           cli.py           │
+└──────────┬───────────────────────┘
+           │ subprocess
+           ▼
 ┌──────────────────────────────────┐
 │  Git (system binary)             │
 │  Standard .git repo on JSON files│
@@ -77,9 +78,9 @@ No server, no database, no web UI. Teams share repos via GitHub just like code.
 
 Scripts placed in `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/` appear in **Workspace > Scripts** menu. When run from this menu, scripts receive `resolve`, `fusion`, and `bmd` variables — full timeline API access. No Studio license required.
 
-### Final Cut Pro X — Integration Details
+### Fallback Strategy
 
-FCP exports structured FCPXML via File > Export XML. Python parses this with OpenTimelineIO. Re-import merged results via File > Import > XML.
+If Resolve Free's scripting API proves too limited, pivot to Final Cut Pro X via FCPXML export/import (File > Export XML / File > Import > XML), parsed with OpenTimelineIO. The giteo-core layer and domain-split JSON format stay the same — only the serializer/deserializer changes.
 
 ---
 
@@ -87,13 +88,12 @@ FCP exports structured FCPXML via File > Export XML. Python parses this with Ope
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
-| Language | Python 3.x | Resolve API is Python; OTIO is Python |
+| Language | Python 3.x | Resolve API is Python |
 | Version control | System `git` binary | Battle-tested; don't reimplement |
 | Git interaction | `subprocess` | No extra dependencies |
 | Data format | JSON (`indent=2, sort_keys=True`) | Human-readable, git-diffable |
-| FCPXML parsing | `opentimelineio` | Handles FCPXML and other NLE formats |
 | Terminal output | `rich` | Pretty diffs and logs |
-| NLE integration | Resolve Workspace Scripts + FCPXML import/export | Works with free Resolve + FCP X |
+| NLE integration | Resolve Workspace Scripts | Scripts appear in Resolve's menu |
 
 ---
 
@@ -106,15 +106,9 @@ giteo/
 │   ├── cli.py                      # CLI entry point
 │   ├── core.py                     # Git wrapper (subprocess)
 │   ├── models.py                   # Dataclasses for timeline entities
-│   ├── serializers/
-│   │   ├── __init__.py
-│   │   ├── resolve.py              # Resolve API → domain-split JSON
-│   │   ├── fcpxml.py               # FCPXML (via OTIO) → domain-split JSON
-│   │   └── json_writer.py          # Shared domain-split JSON writer
-│   ├── deserializers/
-│   │   ├── __init__.py
-│   │   ├── resolve.py              # Domain-split JSON → Resolve timeline
-│   │   └── fcpxml.py               # Domain-split JSON → FCPXML
+│   ├── serializer.py               # Resolve timeline → domain-split JSON
+│   ├── deserializer.py             # Domain-split JSON → Resolve timeline
+│   ├── json_writer.py              # Write domain-split JSON files
 │   └── differ.py                   # Human-readable diff formatting
 ├── resolve_plugin/                 # Scripts for Resolve's Scripts menu
 │   ├── giteo_commit.py
@@ -291,8 +285,6 @@ When Editor A changes `cuts.json` on `main` and Colorist B changes `color.json` 
 | View history | `giteo log` | `git log` with giteo formatting |
 | Undo last version | `giteo revert` | `git revert HEAD` |
 | Start tracking | `giteo init` | Create `.giteo/`, `git init`, initial snapshot |
-| Import from FCP | `giteo import project.fcpxml` | Parse FCPXML → domain-split JSON → commit |
-| Export to FCP | `giteo export --format fcpxml` | JSON → FCPXML for FCP import |
 
 ---
 
@@ -368,8 +360,6 @@ Install scripts by symlinking to:
 3. **Merge tests** — two branches editing different domain files merge cleanly; same file produces a conflict
 4. **Diff formatter tests** — verify human-readable output from known JSON diffs
 5. **Roundtrip tests** — serialize → commit → modify → deserialize → verify structure preserved
-6. **FCPXML tests** — parse sample FCPXML, verify domain-split JSON, write back, compare
-
 Run tests with: `python -m pytest tests/`
 
 ---
@@ -378,7 +368,6 @@ Run tests with: `python -m pytest tests/`
 
 ### In Scope (36-hour MVP)
 - DaVinci Resolve serializer/deserializer (free version, via Scripts menu)
-- FCPXML import/export for Final Cut Pro X (via OpenTimelineIO)
 - Git operations: init, commit, branch, checkout, merge, diff, log, revert
 - Domain-split JSON (cuts, color, audio, effects, markers, metadata)
 - Human-readable diff output
@@ -394,6 +383,6 @@ Run tests with: `python -m pytest tests/`
 - Conflict resolution GUI
 - Locking / concurrent edit prevention
 - Real-time collaboration
-- Premiere Pro / Avid support
+- Premiere Pro / Final Cut Pro / Avid support (fallback only if Resolve fails)
 - LUT or effects binary versioning
 - User authentication
