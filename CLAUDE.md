@@ -95,7 +95,7 @@ If Resolve Free's scripting API proves too limited, pivot to Final Cut Pro X via
 | Version control | System `git` binary | Battle-tested; don't reimplement |
 | Git interaction | `subprocess` | No extra dependencies |
 | Data format | JSON (`indent=2, sort_keys=True`) | Human-readable, git-diffable |
-| AI merge | Claude API (`anthropic` Python SDK) | Semantic conflict resolution |
+| AI merge | Gemini API (`google-generativeai` Python SDK) | Semantic conflict resolution |
 | Terminal output | `rich` | Pretty diffs and logs |
 | NLE integration | Resolve Workspace Scripts | Scripts appear in Resolve's menu |
 | Storage | Local filesystem only | No database, no media storage — just JSON in a git repo |
@@ -415,7 +415,7 @@ Return the resolved JSON for each domain file.
 
 ### Implementation (`ai_merge.py`)
 
-- Uses Claude API via `anthropic` Python SDK
+- Uses Gemini API via `google-generativeai` Python SDK
 - Called only when git can't merge cleanly OR post-merge validation finds issues
 - For the common case (different domains, no cross-references), AI is never invoked — git handles it
 - User always sees what the AI changed before it's committed
@@ -490,7 +490,7 @@ Run tests with: `python -m pytest tests/`
 - DaVinci Resolve serializer/deserializer (free version, via Scripts menu)
 - Full `giteo` CLI: init, add, commit, branch, checkout, merge, diff, log, revert, push, pull, status
 - Domain-split JSON (cuts, color, audio, effects, markers, metadata)
-- AI-powered semantic merge resolution (Claude API)
+- AI-powered semantic merge resolution (Gemini API)
 - Post-merge validation (orphaned refs, sync issues, overlapping clips)
 - Human-readable diff output
 - Asset manifest (file paths + checksums, no binary versioning)
