@@ -13,8 +13,8 @@ import sys
 import threading
 from functools import partial
 
-from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot
-from PySide6.QtGui import QFont, QColor, QPalette, QIcon
+from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPropertyAnimation, QRect, QEasingCurve
+from PySide6.QtGui import QFont, QColor, QPalette, QIcon, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QLineEdit, QDialog, QDialogButtonBox,
@@ -281,14 +281,22 @@ class GiteoPanel(QMainWindow):
         self.ipc = ipc
         self.project_dir = project_dir
         self._threads = []
+        self._collapsed = False
 
         self.setWindowTitle("Giteo")
-        self.setMinimumSize(380, 520)
-        self.resize(380, 580)
         self.setStyleSheet(STYLESHEET)
 
-        # Always on top
-        self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+        # Frameless, always on top
+        self.setWindowFlags(
+            Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
+        )
+
+        # Position: left edge of screen, full height
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        self._panel_width = 320
+        self._tab_width = 52  # Visible when collapsed: chevron (32px) + margin
+        self._screen_geo = screen
+        self.setGeometry(screen.x(), screen.y(), self._panel_width, screen.height())
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -296,7 +304,7 @@ class GiteoPanel(QMainWindow):
         layout.setSpacing(8)
         layout.setContentsMargins(16, 12, 16, 12)
 
-        # Header
+        # Header with collapse chevron
         header = QHBoxLayout()
         title = QLabel("GITEO")
         title.setObjectName("titleLabel")
@@ -305,6 +313,30 @@ class GiteoPanel(QMainWindow):
         self.branch_label = QLabel("branch: —")
         self.branch_label.setObjectName("branchLabel")
         header.addWidget(self.branch_label)
+        header.addSpacing(8)
+        self._chevron_btn = QPushButton("◂")
+        self._chevron_btn.setFixedSize(32, 48)
+        self._chevron_btn.setObjectName("chevronTab")
+        self._chevron_btn.setStyleSheet(f"""
+            QPushButton#chevronTab {{
+                background-color: {BG_PANEL};
+                border: 1px solid {BORDER};
+                border-left: 3px solid {ORANGE};
+                border-radius: 0 8px 8px 0;
+                color: {ORANGE};
+                font-size: 18px;
+                font-weight: bold;
+                padding: 0;
+                margin-left: 2px;
+            }}
+            QPushButton#chevronTab:hover {{
+                background-color: {ORANGE};
+                color: {TEXT_BRIGHT};
+                border-left-color: {ORANGE_PRESSED};
+            }}
+        """)
+        self._chevron_btn.clicked.connect(self.toggle_panel)
+        header.addWidget(self._chevron_btn)
         layout.addLayout(header)
 
         # Separator
@@ -562,6 +594,39 @@ class GiteoPanel(QMainWindow):
                 self.append_log(log)
         else:
             self.append_log(f"Error: {result.get('error', '?')}", ERROR)
+
+    def toggle_panel(self):
+        """Slide the panel in/out from the left edge."""
+        screen = self._screen_geo
+        anim = QPropertyAnimation(self, b"geometry")
+        anim.setDuration(200)
+        anim.setEasingCurve(QEasingCurve.InOutQuad)
+
+        if self._collapsed:
+            # Expand: slide from off-screen to visible
+            anim.setStartValue(QRect(
+                screen.x() - self._panel_width + self._tab_width,
+                screen.y(), self._panel_width, screen.height()
+            ))
+            anim.setEndValue(QRect(
+                screen.x(), screen.y(), self._panel_width, screen.height()
+            ))
+            self._chevron_btn.setText("◂")
+            self._collapsed = False
+        else:
+            # Collapse: slide most of the panel off-screen, keep tab visible
+            anim.setStartValue(QRect(
+                screen.x(), screen.y(), self._panel_width, screen.height()
+            ))
+            anim.setEndValue(QRect(
+                screen.x() - self._panel_width + self._tab_width,
+                screen.y(), self._panel_width, screen.height()
+            ))
+            self._chevron_btn.setText("▸")
+            self._collapsed = True
+
+        self._anim = anim  # prevent GC
+        anim.start()
 
     def closeEvent(self, event):
         self.ipc.close()
