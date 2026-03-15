@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ─────────────────────────────────────────────
 #  Vit Installer — Git for Video Editing
-#  Usage: curl -fsSL https://raw.githubusercontent.com/LucasHJin/giteo/main/install.sh | bash
+#  Usage: curl -fsSL https://raw.githubusercontent.com/LucasHJin/vit/main/install.sh | bash
 # ─────────────────────────────────────────────
 
 VIT_HOME="$HOME/.vit"

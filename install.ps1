@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────
 #  Vit Installer — Git for Video Editing (Windows)
-#  Usage: irm https://raw.githubusercontent.com/LucasHJin/giteo/main/install.ps1 | iex
+#  Usage: irm https://raw.githubusercontent.com/LucasHJin/vit/main/install.ps1 | iex
 # ─────────────────────────────────────────────
 
 $ErrorActionPreference = "Stop"
