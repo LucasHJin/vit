@@ -83,7 +83,9 @@ if (Test-Path "$VIT_SRC\.git") {
 # ── Install Python package ───────────────────
 
 Write-Host "  Installing Vit package..."
+$ErrorActionPreference = "Continue"
 $pipOutput = & $PYTHON -m pip install $VIT_SRC --quiet 2>&1
+$ErrorActionPreference = "Stop"
 # If pip warns the Scripts dir is not on PATH, add it for this session and permanently
 $scriptsDir = $null
 foreach ($line in $pipOutput) {

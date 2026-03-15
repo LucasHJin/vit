@@ -47,25 +47,6 @@ fi
 
 echo "  Using: $($PYTHON --version), $(git --version)"
 
-# Find pip
-PIP=""
-for cmd in pip3 pip; do
-    if command -v "$cmd" &>/dev/null; then
-        PIP="$cmd"
-        break
-    fi
-done
-
-if [ -z "$PIP" ]; then
-    # Fall back to python -m pip
-    if $PYTHON -m pip --version &>/dev/null; then
-        PIP="$PYTHON -m pip"
-    else
-        echo "  Error: pip is not installed. Please install it and try again."
-        exit 1
-    fi
-fi
-
 # ── Download / update source ─────────────────
 
 mkdir -p "$VIT_HOME"
@@ -81,29 +62,34 @@ else
     git clone --quiet "$REPO_URL" "$VIT_SRC"
 fi
 
-# ── Install Python package ───────────────────
+# ── Install into venv ───────────────────────
+
+VIT_VENV="$VIT_HOME/venv"
+
+if [ ! -d "$VIT_VENV" ]; then
+    echo "  Creating virtual environment..."
+    $PYTHON -m venv "$VIT_VENV"
+fi
 
 echo "  Installing Vit package..."
-$PIP install "$VIT_SRC" --quiet 2>/dev/null || $PIP install "$VIT_SRC" --quiet --user
+"$VIT_VENV/bin/pip" install "$VIT_SRC" --quiet
 
-# Ensure pip's script directory is on PATH
+# ── Add venv bin to PATH ────────────────────
+
+VIT_BIN="$VIT_VENV/bin"
 if ! command -v vit &>/dev/null; then
-    USER_BIN="$HOME/.local/bin"
-    if [ -f "$USER_BIN/vit" ]; then
-        echo "  Adding $USER_BIN to PATH..."
-        export PATH="$USER_BIN:$PATH"
-        # Persist to shell profile
-        SHELL_RC=""
-        if [ -f "$HOME/.zshrc" ]; then
-            SHELL_RC="$HOME/.zshrc"
-        elif [ -f "$HOME/.bashrc" ]; then
-            SHELL_RC="$HOME/.bashrc"
-        elif [ -f "$HOME/.bash_profile" ]; then
-            SHELL_RC="$HOME/.bash_profile"
-        fi
-        if [ -n "$SHELL_RC" ] && ! grep -q 'export PATH=.*\.local/bin' "$SHELL_RC" 2>/dev/null; then
-            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
-        fi
+    echo "  Adding vit to PATH..."
+    export PATH="$VIT_BIN:$PATH"
+    SHELL_RC=""
+    if [ -f "$HOME/.zshrc" ]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+        SHELL_RC="$HOME/.bashrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        SHELL_RC="$HOME/.bash_profile"
+    fi
+    if [ -n "$SHELL_RC" ] && ! grep -q "$VIT_BIN" "$SHELL_RC" 2>/dev/null; then
+        echo "export PATH=\"$VIT_BIN:\$PATH\"" >> "$SHELL_RC"
     fi
 fi
 
@@ -113,8 +99,7 @@ echo "  Installing DaVinci Resolve scripts..."
 if command -v vit &>/dev/null; then
     vit install-resolve
 else
-    # vit might not be on PATH yet (--user install)
-    $PYTHON -m vit.cli install-resolve 2>/dev/null || {
+    "$VIT_BIN/vit" install-resolve 2>/dev/null || {
         echo ""
         echo "  Note: Could not auto-install Resolve scripts."
         echo "  After restarting your terminal, run: vit install-resolve"
