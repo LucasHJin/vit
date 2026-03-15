@@ -46,6 +46,16 @@ def _find_system_python():
         "/usr/bin/python3",
         "/opt/homebrew/bin/python3",
     ]
+    # Check giteo project venv first (from install-resolve package_path)
+    _pf = os.path.expanduser("~/.giteo/package_path")
+    if os.path.exists(_pf):
+        with open(_pf) as _f:
+            pkg_root = _f.read().strip()
+        for venv_name in (".venv", "venv", "env"):
+            venv_py = os.path.join(pkg_root, venv_name, "bin", "python3")
+            if os.path.exists(venv_py):
+                candidates.insert(1, venv_py)  # High priority
+                break
     # Check versioned Pythons (3.9-3.13) in common locations
     import glob
     for pattern in [
@@ -136,14 +146,10 @@ def handle_request(request, resolve_app, project_dir):
 
             project = resolve_app.GetProjectManager().GetCurrentProject()
             timeline = project.GetCurrentTimeline()
-            if not project or not timeline:
-                return {"ok": True, "branch": target, "restored": False}
-
-            try:
+            if timeline:
                 deserialize_timeline(timeline, project, project_dir)
-            except Exception as e:
-                return {"ok": False, "error": f"Restore failed: {e}"}
-            return {"ok": True, "branch": target, "restored": True}
+                return {"ok": True, "branch": target, "restored": True}
+            return {"ok": True, "branch": target, "restored": False}
 
         elif action == "merge":
             from giteo.core import (
@@ -232,6 +238,103 @@ def handle_request(request, resolve_app, project_dir):
                 "status": status.strip() if status else "Working tree clean",
                 "log": log_out or "",
             }
+
+        elif action == "get_changes":
+            from giteo.differ import get_changes_by_category
+            try:
+                changes = get_changes_by_category(project_dir, "HEAD")
+                return {"ok": True, "changes": changes}
+            except Exception as e:
+                return {"ok": True, "changes": {"audio": [], "video": [], "color": []}}
+
+        elif action == "get_commit_history":
+            from giteo.core import git_log_with_changes, categorize_commit
+            limit = request.get("limit", 10)
+            commits = git_log_with_changes(project_dir, max_count=limit)
+            # Add category to each commit
+            for commit in commits:
+                commit["category"] = categorize_commit(commit.get("files_changed", []))
+            return {"ok": True, "commits": commits}
+
+        elif action == "compare_branches":
+            from giteo.differ import get_branch_diff_by_category
+            branch_a = request.get("branch_a", "")
+            branch_b = request.get("branch_b", "")
+            if not branch_a or not branch_b:
+                return {"ok": False, "error": "Both branch_a and branch_b required"}
+            changes_a, changes_b = get_branch_diff_by_category(project_dir, branch_a, branch_b)
+            return {
+                "ok": True,
+                "branch_a": branch_a,
+                "branch_b": branch_b,
+                "changes_a": changes_a,
+                "changes_b": changes_b,
+            }
+
+        elif action == "analyze_merge":
+            from giteo.differ import get_branch_diff_by_category
+            from giteo.ai_merge import analyze_branch_comparison
+            branch_a = request.get("branch_a", "")
+            branch_b = request.get("branch_b", "")
+            if not branch_a or not branch_b:
+                return {"ok": False, "error": "Both branch_a and branch_b required"}
+            changes_a, changes_b = get_branch_diff_by_category(project_dir, branch_a, branch_b)
+            try:
+                analysis = analyze_branch_comparison(branch_a, branch_b, changes_a, changes_b)
+                return {
+                    "ok": True,
+                    "branch_a": branch_a,
+                    "branch_b": branch_b,
+                    "changes_a": changes_a,
+                    "changes_b": changes_b,
+                    "analysis": analysis,
+                }
+            except Exception as e:
+                return {
+                    "ok": True,
+                    "branch_a": branch_a,
+                    "branch_b": branch_b,
+                    "changes_a": changes_a,
+                    "changes_b": changes_b,
+                    "analysis": {"recommendation": "Manual review required", "explanation": str(e)},
+                }
+
+        elif action == "classify_commit":
+            from giteo.ai_merge import classify_commit_type
+            commit_hash = request.get("hash", "")
+            files_changed = request.get("files", [])
+            message = request.get("message", "")
+            try:
+                category = classify_commit_type(commit_hash, files_changed, message)
+                return {"ok": True, "hash": commit_hash, "category": category}
+            except Exception as e:
+                from giteo.core import categorize_commit
+                fallback = categorize_commit(files_changed)
+                return {"ok": True, "hash": commit_hash, "category": fallback}
+
+        elif action == "get_commit_graph":
+            from giteo.core import git_log_with_topology
+            limit = request.get("limit", 30)
+            try:
+                data = git_log_with_topology(project_dir, max_count=limit)
+                # Assign color indices to branches dynamically
+                branch_colors = {}
+                color_idx = 0
+                for branch in data.get("branches", []):
+                    if branch in ("main", "master"):
+                        branch_colors[branch] = 3  # orange
+                    else:
+                        branch_colors[branch] = color_idx % 3  # rotate R(0), G(1), B(2)
+                        color_idx += 1
+                return {
+                    "ok": True,
+                    "commits": data.get("commits", []),
+                    "branches": data.get("branches", []),
+                    "branch_colors": branch_colors,
+                    "head": data.get("head", ""),
+                }
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
 
         elif action == "quit":
             return {"ok": True, "quit": True}
