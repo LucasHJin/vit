@@ -1,6 +1,6 @@
 """Tests for Resolve plugin utilities."""
 
-from giteo.core import GitError
+from vit.core import GitError
 from resolve_plugin import plugin_utils
 
 
@@ -48,9 +48,9 @@ def test_auto_save_current_timeline_serializes_and_commits(monkeypatch):
         calls.append(("commit", project_dir, message))
         return "abc1234"
 
-    monkeypatch.setattr("giteo.serializer.serialize_timeline", fake_serialize_timeline)
-    monkeypatch.setattr("giteo.core.git_add", fake_git_add)
-    monkeypatch.setattr("giteo.core.git_commit", fake_git_commit)
+    monkeypatch.setattr("vit.serializer.serialize_timeline", fake_serialize_timeline)
+    monkeypatch.setattr("vit.core.git_add", fake_git_add)
+    monkeypatch.setattr("vit.core.git_commit", fake_git_commit)
 
     ok = plugin_utils.auto_save_current_timeline(
         resolve, "/tmp/project", "switching to 'main'"
@@ -59,8 +59,8 @@ def test_auto_save_current_timeline_serializes_and_commits(monkeypatch):
     assert ok is True
     assert calls == [
         ("serialize", "Color Pass", "/tmp/project", resolve),
-        ("add", "/tmp/project", ("timeline/", "assets/", ".giteo/", ".gitignore")),
-        ("commit", "/tmp/project", "giteo: auto-save before switching to 'main'"),
+        ("add", "/tmp/project", ("timeline/", "assets/", ".vit/", ".gitignore")),
+        ("commit", "/tmp/project", "vit: auto-save before switching to 'main'"),
     ]
 
 
@@ -71,9 +71,9 @@ def test_auto_save_current_timeline_treats_nothing_to_commit_as_success(monkeypa
     def fake_git_commit(project_dir, message):
         raise GitError("nothing to commit")
 
-    monkeypatch.setattr("giteo.serializer.serialize_timeline", lambda *args, **kwargs: None)
-    monkeypatch.setattr("giteo.core.git_add", lambda *args, **kwargs: None)
-    monkeypatch.setattr("giteo.core.git_commit", fake_git_commit)
+    monkeypatch.setattr("vit.serializer.serialize_timeline", lambda *args, **kwargs: None)
+    monkeypatch.setattr("vit.core.git_add", lambda *args, **kwargs: None)
+    monkeypatch.setattr("vit.core.git_commit", fake_git_commit)
 
     ok = plugin_utils.auto_save_current_timeline(
         resolve, "/tmp/project", "merging 'color' into 'main'"
@@ -88,11 +88,11 @@ def test_auto_save_current_timeline_allows_missing_timeline(monkeypatch):
     resolve = _FakeResolve(None)
 
     monkeypatch.setattr(
-        "giteo.serializer.serialize_timeline",
+        "vit.serializer.serialize_timeline",
         lambda *args, **kwargs: calls.append("serialize"),
     )
-    monkeypatch.setattr("giteo.core.git_add", lambda *args, **kwargs: calls.append("add"))
-    monkeypatch.setattr("giteo.core.git_commit", lambda *args, **kwargs: calls.append("commit"))
+    monkeypatch.setattr("vit.core.git_add", lambda *args, **kwargs: calls.append("add"))
+    monkeypatch.setattr("vit.core.git_commit", lambda *args, **kwargs: calls.append("commit"))
 
     ok = plugin_utils.auto_save_current_timeline(
         resolve, "/tmp/project", "switching to 'main'"

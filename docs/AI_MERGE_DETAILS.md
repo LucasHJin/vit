@@ -14,7 +14,7 @@
 ## Merge Flow
 
 ```
-giteo merge <branch>
+vit merge <branch>
     │
     ▼
 1. Try git merge

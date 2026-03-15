@@ -5,8 +5,8 @@ import tempfile
 
 import pytest
 
-from giteo.serializer import serialize_timeline
-from giteo.deserializer import (
+from vit.serializer import serialize_timeline
+from vit.deserializer import (
     capture_restore_state,
     _collect_video_clip_infos,
     _create_fresh_timeline,
@@ -44,7 +44,7 @@ def test_create_fresh_timeline_uses_temp_name():
 
     fresh, old_name = _create_fresh_timeline(project, media_pool, old_tl)
 
-    assert fresh.GetName().startswith("giteo_temp_")
+    assert fresh.GetName().startswith("vit_temp_")
     assert fresh is not old_tl
     assert old_tl.GetName() == "My Edit"
     assert old_name == "My Edit"
@@ -81,7 +81,7 @@ def test_create_timeline_with_clips_atomic():
     assert new_tl is not None
     assert created_with_first is True
     assert remaining == []
-    assert new_tl.GetName().startswith("giteo_temp_")
+    assert new_tl.GetName().startswith("vit_temp_")
     assert _timeline_has_clips(new_tl)
 
 
@@ -200,7 +200,7 @@ def test_deserialize_renames_after_population(project_dir):
     deserialize_timeline(timeline, project, project_dir)
 
     assert timeline.GetName() != old_name
-    assert ".giteo-old" in timeline.GetName()
+    assert ".vit-old" in timeline.GetName()
 
 
 def test_deserialize_fresh_timeline_is_current(project_dir):
@@ -279,9 +279,9 @@ def test_apply_grade_from_drx_returns_false_when_no_api_available():
 def test_restore_timeline_overlays_clears_and_reapplies_markers(monkeypatch):
     timeline = _FakeTimeline(None)
 
-    monkeypatch.setattr("giteo.deserializer._load_color", lambda project_dir: {})
+    monkeypatch.setattr("vit.deserializer._load_color", lambda project_dir: {})
     monkeypatch.setattr(
-        "giteo.deserializer._load_markers",
+        "vit.deserializer._load_markers",
         lambda project_dir: [
             type("Marker", (), {
                 "frame": 25,
@@ -292,7 +292,7 @@ def test_restore_timeline_overlays_clears_and_reapplies_markers(monkeypatch):
             })()
         ],
     )
-    monkeypatch.setattr("giteo.deserializer._apply_color", lambda *args, **kwargs: None)
+    monkeypatch.setattr("vit.deserializer._apply_color", lambda *args, **kwargs: None)
 
     restore_timeline_overlays(timeline, "/tmp/project")
 

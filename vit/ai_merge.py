@@ -94,7 +94,7 @@ class MergeAnalysis:
 
 MERGE_ANALYSIS_SYSTEM_PROMPT = """\
 You are a video editing timeline merge analyzer. You analyze merge conflicts \
-and cross-domain semantic issues in giteo timeline files, then produce structured \
+and cross-domain semantic issues in vit timeline files, then produce structured \
 decisions for each domain.
 
 The timeline is split into domain files: cuts.json, color.json, audio.json, \

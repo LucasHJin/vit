@@ -2,7 +2,7 @@
 
 import pytest
 
-from giteo.differ import (
+from vit.differ import (
     diff_cuts,
     diff_color,
     diff_audio,

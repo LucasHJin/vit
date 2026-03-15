@@ -1,11 +1,11 @@
-"""Giteo Panel Launcher — Resolve entry point for the PySide6 panel.
+"""Vit Panel Launcher — Resolve entry point for the PySide6 panel.
 
 Runs inside DaVinci Resolve's Python environment. Discovers the project
 directory, then opens a socket server and spawns the PySide6 UI as a
 subprocess. All Resolve-dependent operations (serialize, deserialize)
 are handled here; the subprocess sends JSON requests over the socket.
 
-Run from Workspace > Scripts > Giteo - Panel.
+Run from Workspace > Scripts > Vit - Panel.
 """
 import json
 import os
@@ -16,26 +16,26 @@ import tempfile
 import threading
 import traceback
 
-# Bootstrap: find the giteo package
+# Bootstrap: find the vit package
 try:
     _real = os.path.realpath(__file__)
 except NameError:
     _real = None
 if _real:
     _root = os.path.dirname(os.path.dirname(_real))
-    if os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+    if os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
         sys.path.insert(0, _root)
 else:
-    _pf = os.path.expanduser("~/.giteo/package_path")
+    _pf = os.path.expanduser("~/.vit/package_path")
     if os.path.exists(_pf):
         with open(_pf) as _f:
             _root = _f.read().strip()
-        if _root and os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+        if _root and os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
             sys.path.insert(0, _root)
 
 
 def _log(msg):
-    print(f"[giteo] {msg}")
+    print(f"[vit] {msg}")
 
 
 def _find_system_python():
@@ -46,8 +46,8 @@ def _find_system_python():
         "/usr/bin/python3",
         "/opt/homebrew/bin/python3",
     ]
-    # Check giteo project venv first (from install-resolve package_path)
-    _pf = os.path.expanduser("~/.giteo/package_path")
+    # Check vit project venv first (from install-resolve package_path)
+    _pf = os.path.expanduser("~/.vit/package_path")
     if os.path.exists(_pf):
         with open(_pf) as _f:
             pkg_root = _f.read().strip()
@@ -97,13 +97,13 @@ def handle_request(request, resolve_app, project_dir):
             return {"ok": True}
 
         elif action == "get_branch":
-            from giteo.core import git_current_branch
+            from vit.core import git_current_branch
             branch = git_current_branch(project_dir)
             return {"ok": True, "branch": branch}
 
         elif action == "save":
-            from giteo.serializer import serialize_timeline
-            from giteo.core import git_add, git_commit, GitError
+            from vit.serializer import serialize_timeline
+            from vit.core import git_add, git_commit, GitError
 
             project = resolve_app.GetProjectManager().GetCurrentProject()
             timeline = project.GetCurrentTimeline()
@@ -112,9 +112,9 @@ def handle_request(request, resolve_app, project_dir):
 
             msg = request.get("message", "save version")
             serialize_timeline(timeline, project, project_dir, resolve_app=resolve_app)
-            git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+            git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
             try:
-                hash_val = git_commit(project_dir, f"giteo: {msg}")
+                hash_val = git_commit(project_dir, f"vit: {msg}")
                 return {"ok": True, "hash": hash_val, "message": msg}
             except GitError as e:
                 if "nothing to commit" in str(e):
@@ -122,7 +122,7 @@ def handle_request(request, resolve_app, project_dir):
                 return {"ok": False, "error": str(e)}
 
         elif action == "new_branch":
-            from giteo.core import git_branch
+            from vit.core import git_branch
             name = request.get("name", "").strip()
             if not name:
                 return {"ok": False, "error": "No branch name provided."}
@@ -130,14 +130,14 @@ def handle_request(request, resolve_app, project_dir):
             return {"ok": True, "branch": name}
 
         elif action == "list_branches":
-            from giteo.core import git_list_branches, git_current_branch
+            from vit.core import git_list_branches, git_current_branch
             branches = git_list_branches(project_dir)
             current = git_current_branch(project_dir)
             return {"ok": True, "branches": branches, "current": current}
 
         elif action == "switch_branch":
-            from giteo.core import git_checkout, git_current_branch
-            from giteo.deserializer import deserialize_timeline
+            from vit.core import git_checkout, git_current_branch
+            from vit.deserializer import deserialize_timeline
 
             target = request.get("branch", "")
             current = git_current_branch(project_dir)
@@ -152,14 +152,14 @@ def handle_request(request, resolve_app, project_dir):
             return {"ok": True, "branch": target, "restored": False}
 
         elif action == "merge":
-            from giteo.core import (
+            from vit.core import (
                 git_add, git_commit, git_merge, git_is_clean,
                 git_current_branch, git_list_conflicted_files,
                 git_checkout_theirs, GitError,
             )
-            from giteo.serializer import serialize_timeline
-            from giteo.deserializer import deserialize_timeline
-            from giteo.validator import validate_project, format_issues
+            from vit.serializer import serialize_timeline
+            from vit.deserializer import deserialize_timeline
+            from vit.validator import validate_project, format_issues
 
             target = request.get("branch", "")
             current = git_current_branch(project_dir)
@@ -170,9 +170,9 @@ def handle_request(request, resolve_app, project_dir):
                 timeline = project.GetCurrentTimeline()
                 if timeline:
                     serialize_timeline(timeline, project, project_dir, resolve_app=resolve_app)
-                git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+                git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
                 try:
-                    git_commit(project_dir, f"giteo: auto-save before merging '{target}'")
+                    git_commit(project_dir, f"vit: auto-save before merging '{target}'")
                 except GitError as e:
                     if "nothing to commit" not in str(e):
                         return {"ok": False, "error": str(e)}
@@ -186,7 +186,7 @@ def handle_request(request, resolve_app, project_dir):
                     try:
                         git_checkout_theirs(project_dir, auto_resolvable)
                         git_add(project_dir, auto_resolvable)
-                        git_commit(project_dir, f"giteo: merged '{target}' (auto-resolved)")
+                        git_commit(project_dir, f"vit: merged '{target}' (auto-resolved)")
                         success = True
                     except GitError as e:
                         return {"ok": False, "error": f"Auto-resolve failed: {e}"}
@@ -200,10 +200,10 @@ def handle_request(request, resolve_app, project_dir):
                 issue_text = format_issues(issues) if issues else ""
                 return {"ok": True, "branch": target, "current": current, "issues": issue_text}
             else:
-                return {"ok": False, "error": f"Merge conflicts. Use terminal: giteo merge {target}"}
+                return {"ok": False, "error": f"Merge conflicts. Use terminal: vit merge {target}"}
 
         elif action == "push":
-            from giteo.core import git_current_branch, git_push, GitError
+            from vit.core import git_current_branch, git_push, GitError
             branch = git_current_branch(project_dir)
             try:
                 output = git_push(project_dir, "origin", branch)
@@ -212,8 +212,8 @@ def handle_request(request, resolve_app, project_dir):
                 return {"ok": False, "error": str(e)}
 
         elif action == "pull":
-            from giteo.core import git_current_branch, git_pull, GitError
-            from giteo.deserializer import deserialize_timeline
+            from vit.core import git_current_branch, git_pull, GitError
+            from vit.deserializer import deserialize_timeline
 
             branch = git_current_branch(project_dir)
             try:
@@ -228,7 +228,7 @@ def handle_request(request, resolve_app, project_dir):
             return {"ok": True, "branch": branch, "output": output.strip()}
 
         elif action == "status":
-            from giteo.core import git_current_branch, git_status, git_log
+            from vit.core import git_current_branch, git_status, git_log
             branch = git_current_branch(project_dir)
             status = git_status(project_dir)
             log_out = git_log(project_dir, max_count=5)
@@ -240,8 +240,8 @@ def handle_request(request, resolve_app, project_dir):
             }
 
         elif action == "get_changes":
-            from giteo.differ import get_changes_by_category
-            from giteo.serializer import serialize_timeline
+            from vit.differ import get_changes_by_category
+            from vit.serializer import serialize_timeline
             try:
                 # Re-serialize current timeline state before diffing
                 project = resolve_app.GetProjectManager().GetCurrentProject()
@@ -254,7 +254,7 @@ def handle_request(request, resolve_app, project_dir):
                 return {"ok": True, "changes": {"audio": [], "video": [], "color": []}}
 
         elif action == "get_commit_history":
-            from giteo.core import git_log_with_changes, categorize_commit
+            from vit.core import git_log_with_changes, categorize_commit
             limit = request.get("limit", 10)
             commits = git_log_with_changes(project_dir, max_count=limit)
             # Add category to each commit
@@ -263,7 +263,7 @@ def handle_request(request, resolve_app, project_dir):
             return {"ok": True, "commits": commits}
 
         elif action == "compare_branches":
-            from giteo.differ import get_branch_diff_by_category
+            from vit.differ import get_branch_diff_by_category
             branch_a = request.get("branch_a", "")
             branch_b = request.get("branch_b", "")
             if not branch_a or not branch_b:
@@ -278,8 +278,8 @@ def handle_request(request, resolve_app, project_dir):
             }
 
         elif action == "analyze_merge":
-            from giteo.differ import get_branch_diff_by_category
-            from giteo.ai_merge import analyze_branch_comparison
+            from vit.differ import get_branch_diff_by_category
+            from vit.ai_merge import analyze_branch_comparison
             branch_a = request.get("branch_a", "")
             branch_b = request.get("branch_b", "")
             if not branch_a or not branch_b:
@@ -306,7 +306,7 @@ def handle_request(request, resolve_app, project_dir):
                 }
 
         elif action == "classify_commit":
-            from giteo.ai_merge import classify_commit_type
+            from vit.ai_merge import classify_commit_type
             commit_hash = request.get("hash", "")
             files_changed = request.get("files", [])
             message = request.get("message", "")
@@ -314,12 +314,12 @@ def handle_request(request, resolve_app, project_dir):
                 category = classify_commit_type(commit_hash, files_changed, message)
                 return {"ok": True, "hash": commit_hash, "category": category}
             except Exception as e:
-                from giteo.core import categorize_commit
+                from vit.core import categorize_commit
                 fallback = categorize_commit(files_changed)
                 return {"ok": True, "hash": commit_hash, "category": fallback}
 
         elif action == "get_commit_graph":
-            from giteo.core import git_log_with_topology
+            from vit.core import git_log_with_topology
             limit = request.get("limit", 30)
             try:
                 data = git_log_with_topology(project_dir, max_count=limit)
@@ -371,7 +371,7 @@ def run_server(resolve_app, project_dir):
         try:
             _log("Falling back to tkinter panel...")
             server.close()
-            from resolve_plugin.giteo_panel_tkinter import main as tkinter_main
+            from resolve_plugin.vit_panel_tkinter import main as tkinter_main
             tkinter_main()
             return
         except ImportError:
@@ -380,19 +380,19 @@ def run_server(resolve_app, project_dir):
             return
 
     # Spawn Qt subprocess
-    # Find giteo_panel_qt.py — __file__ may not be defined in Resolve
+    # Find vit_panel_qt.py — __file__ may not be defined in Resolve
     qt_script = None
     try:
-        qt_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "giteo_panel_qt.py")
+        qt_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "vit_panel_qt.py")
     except NameError:
         pass
     if not qt_script or not os.path.exists(qt_script):
         # Use saved package path from install-resolve
-        _pf = os.path.expanduser("~/.giteo/package_path")
+        _pf = os.path.expanduser("~/.vit/package_path")
         if os.path.exists(_pf):
             with open(_pf) as f:
                 pkg_root = f.read().strip()
-            qt_script = os.path.join(pkg_root, "resolve_plugin", "giteo_panel_qt.py")
+            qt_script = os.path.join(pkg_root, "resolve_plugin", "vit_panel_qt.py")
 
     _log(f"Spawning Qt panel: {python} {qt_script}")
     proc = subprocess.Popen(
@@ -470,7 +470,7 @@ def main():
 
     project_dir = get_project_dir()
     if not project_dir:
-        show_error("Giteo", "No giteo project found.\nRun 'giteo init <path>' from terminal.")
+        show_error("Vit", "No vit project found.\nRun 'vit init <path>' from terminal.")
         return
 
     run_server(_resolve, project_dir)
@@ -479,4 +479,4 @@ def main():
 try:
     main()
 except Exception:
-    print(f"[giteo] LAUNCHER ERROR:\n{traceback.format_exc()}")
+    print(f"[vit] LAUNCHER ERROR:\n{traceback.format_exc()}")

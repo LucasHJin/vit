@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from giteo.ai_merge import (
+from vit.ai_merge import (
     MergeAnalysis,
     MergeDecision,
     MergeOption,
@@ -17,8 +17,8 @@ from giteo.ai_merge import (
     ai_analyze_merge,
     ai_resolve_clarifications,
 )
-from giteo.cli import _detect_overlapping_domains
-from giteo.validator import ValidationIssue
+from vit.cli import _detect_overlapping_domains
+from vit.validator import ValidationIssue
 
 
 class TestMergeOption:
@@ -260,7 +260,7 @@ class TestDetectOverlappingDomains:
 
 
 class TestAiAnalyzeMerge:
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_successful_analysis(self, mock_get_model):
         mock_model = MagicMock()
         mock_response = MagicMock()
@@ -281,7 +281,7 @@ class TestAiAnalyzeMerge:
         assert len(result.decisions) == 1
         assert result.decisions[0].domain == "cuts"
 
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_invalid_json_returns_none(self, mock_get_model):
         mock_model = MagicMock()
         mock_response = MagicMock()
@@ -292,7 +292,7 @@ class TestAiAnalyzeMerge:
         result = ai_analyze_merge({}, {}, {}, [], [])
         assert result is None
 
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_api_error_returns_none(self, mock_get_model):
         mock_get_model.side_effect = ValueError("No API key")
 
@@ -301,7 +301,7 @@ class TestAiAnalyzeMerge:
 
 
 class TestAiResolveClarifications:
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_successful_clarification(self, mock_get_model):
         mock_model = MagicMock()
         mock_response = MagicMock()
@@ -330,7 +330,7 @@ class TestAiResolveClarifications:
         assert result is not None
         assert "color" in result
 
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_no_questions_returns_empty(self, mock_get_model):
         analysis = MergeAnalysis(
             summary="Test",
@@ -347,7 +347,7 @@ class TestAiResolveClarifications:
 class TestIntegration:
     """Integration tests with mocked Gemini API."""
 
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_full_auto_resolve_flow(self, mock_get_model):
         """Test a merge where AI auto-resolves everything (no user input needed)."""
         mock_model = MagicMock()
@@ -376,7 +376,7 @@ class TestIntegration:
         assert not analysis.needs_user_input()
         assert len(analysis.resolved) == 2
 
-    @patch("giteo.ai_merge._get_genai_model")
+    @patch("vit.ai_merge._get_genai_model")
     def test_mixed_flow_with_questions(self, mock_get_model):
         """Test a merge where some domains need user input."""
         mock_model = MagicMock()

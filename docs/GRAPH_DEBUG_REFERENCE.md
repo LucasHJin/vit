@@ -1,4 +1,4 @@
-# Graph Debug Reference — giteo-test-project
+# Graph Debug Reference — vit-test-project
 
 Cross-reference for fixing the commit graph display. Data captured from your test project.
 
@@ -8,12 +8,12 @@ Cross-reference for fixing the commit graph display. Data captured from your tes
 
 | Branch   | Points to commit | Message        |
 |----------|-------------------|----------------|
-| **Hi** (HEAD) | f9f17ae        | giteo: Saved   |
-| New      | 1731698           | giteo: Hi      |
-| Lebron   | 5669a84           | giteo: 1       |
-| Tester   | 840fb18           | giteo: New     |
-| master   | a7e77fa           | giteo: saved   |
-| speed    | 99d40e2           | giteo: save 'Timeline 1' |
+| **Hi** (HEAD) | f9f17ae        | vit: Saved   |
+| New      | 1731698           | vit: Hi      |
+| Lebron   | 5669a84           | vit: 1       |
+| Tester   | 840fb18           | vit: New     |
+| master   | a7e77fa           | vit: saved   |
+| speed    | 99d40e2           | vit: save 'Timeline 1' |
 
 ---
 
@@ -22,21 +22,21 @@ Cross-reference for fixing the commit graph display. Data captured from your tes
 ```
 INDEX   HASH      BRANCH*   MESSAGE
 ----    ------    ------    ------
- 0      f9f17ae   Hi        giteo: Saved                    ← HEAD (current)
- 1      fd47c17   Hi        giteo: removed clip
- 2      38290b3   Hi        giteo: hello
- 3      4284e62   Hi        giteo: hi
- 4      1731698   New       giteo: Hi                       ← branch tip: New
- 5      1834589   Hi        giteo: jhi
- 6      5669a84   Lebron    giteo: 1                         ← branch tip: Lebron
- 7      56f244f   Hi        giteo: save version
- 8      840fb18   Tester    giteo: New                       ← branch tip: Tester
- 9      a7e77fa   master    giteo: saved                     ← branch tip: master
-10      9e2def0   Hi        giteo: init commit
-11      d468855   Hi        giteo: save 'Timeline 1'
-12      4722aef   Hi        giteo: save 'Timeline 1'
-13      99d40e2   speed     giteo: save 'Timeline 1'         ← branch tip: speed
-14      7acecf6   Hi        giteo: initial snapshot          ← root
+ 0      f9f17ae   Hi        vit: Saved                    ← HEAD (current)
+ 1      fd47c17   Hi        vit: removed clip
+ 2      38290b3   Hi        vit: hello
+ 3      4284e62   Hi        vit: hi
+ 4      1731698   New       vit: Hi                       ← branch tip: New
+ 5      1834589   Hi        vit: jhi
+ 6      5669a84   Lebron    vit: 1                         ← branch tip: Lebron
+ 7      56f244f   Hi        vit: save version
+ 8      840fb18   Tester    vit: New                       ← branch tip: Tester
+ 9      a7e77fa   master    vit: saved                     ← branch tip: master
+10      9e2def0   Hi        vit: init commit
+11      d468855   Hi        vit: save 'Timeline 1'
+12      4722aef   Hi        vit: save 'Timeline 1'
+13      99d40e2   speed     vit: save 'Timeline 1'         ← branch tip: speed
+14      7acecf6   Hi        vit: initial snapshot          ← root
 ```
 
 \* Branch = which ref(s) point to this commit (from `git log %D`). Commits with no ref get `current_branch` (Hi).
@@ -53,21 +53,21 @@ Sample rows:
 
 | Hash     | Parent  | Message            | Refs                     |
 |----------|---------|--------------------|--------------------------|
-| f9f17ae  | fd47c17 | giteo: Saved       | HEAD -> Hi               |
-| fd47c17  | 38290b3 | giteo: removed clip| (none → Hi)              |
-| 38290b3  | 4284e62 | giteo: hello       | origin/Hi                |
-| 4284e62  | 1731698 | giteo: hi          | (none → Hi)              |
-| 1731698  | 1834589 | giteo: Hi          | New                      |
-| 1834589  | 5669a84 | giteo: jhi         | origin/New               |
-| 5669a84  | 56f244f | giteo: 1           | Lebron                   |
-| 56f244f  | 840fb18 | giteo: save version| (none → Hi)              |
-| 840fb18  | a7e77fa | giteo: New         | origin/Tester, Tester    |
-| a7e77fa  | 9e2def0 | giteo: saved       | origin/master, master    |
-| 9e2def0  | d468855 | giteo: init commit | (none → Hi)              |
-| d468855  | 4722aef | giteo: save 'Timeline 1' | (none → Hi)      |
-| 4722aef  | 99d40e2 | giteo: save 'Timeline 1' | (none → Hi)      |
-| 99d40e2  | 7acecf6 | giteo: save 'Timeline 1' | speed             |
-| 7acecf6  | (root)  | giteo: initial snapshot | (none → Hi)       |
+| f9f17ae  | fd47c17 | vit: Saved       | HEAD -> Hi               |
+| fd47c17  | 38290b3 | vit: removed clip| (none → Hi)              |
+| 38290b3  | 4284e62 | vit: hello       | origin/Hi                |
+| 4284e62  | 1731698 | vit: hi          | (none → Hi)              |
+| 1731698  | 1834589 | vit: Hi          | New                      |
+| 1834589  | 5669a84 | vit: jhi         | origin/New               |
+| 5669a84  | 56f244f | vit: 1           | Lebron                   |
+| 56f244f  | 840fb18 | vit: save version| (none → Hi)              |
+| 840fb18  | a7e77fa | vit: New         | origin/Tester, Tester    |
+| a7e77fa  | 9e2def0 | vit: saved       | origin/master, master    |
+| 9e2def0  | d468855 | vit: init commit | (none → Hi)              |
+| d468855  | 4722aef | vit: save 'Timeline 1' | (none → Hi)      |
+| 4722aef  | 99d40e2 | vit: save 'Timeline 1' | (none → Hi)      |
+| 99d40e2  | 7acecf6 | vit: save 'Timeline 1' | speed             |
+| 7acecf6  | (root)  | vit: initial snapshot | (none → Hi)       |
 
 ---
 
@@ -87,7 +87,7 @@ So all branch tips are just labels along one straight line. There is no “branc
 
 ## What the Graph Logic Currently Uses
 
-From `giteo/core.py` and `giteo_panel_qt.py`:
+From `vit/core.py` and `vit_panel_qt.py`:
 
 1. **Branch for a commit**
    - From `%D`: if `HEAD -> X`, branch = X

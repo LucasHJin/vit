@@ -5,8 +5,8 @@ import tempfile
 
 import pytest
 
-from giteo.json_writer import _write_json
-from giteo.validator import validate_project
+from vit.json_writer import _write_json
+from vit.validator import validate_project
 
 
 @pytest.fixture

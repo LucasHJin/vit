@@ -1,4 +1,4 @@
-# Giteo JSON Schemas
+# Vit JSON Schemas
 
 Full schema examples for domain-split timeline files. Reference when implementing serializer/deserializer or debugging JSON structure.
 

@@ -55,7 +55,7 @@ All return **static values only** — no keyframe data. Serialized in `cuts.json
 - `Timeline.DeleteClips()` — does NOT exist
 - No `Project.DeleteTimeline()` method
 
-**Current approach:** On restore, create fresh timeline via `MediaPool.CreateEmptyTimeline()`, populate it, rename old to `.giteo-old`. Old timelines accumulate; user must delete manually.
+**Current approach:** On restore, create fresh timeline via `MediaPool.CreateEmptyTimeline()`, populate it, rename old to `.vit-old`. Old timelines accumulate; user must delete manually.
 
 ## Timeline Restore — Clip Duplication Bug
 
@@ -66,4 +66,4 @@ All return **static values only** — no keyframe data. Serialized in `cuts.json
 **Current approach (v4):** Three-phase flow in `deserialize_timeline`:
 1. **Create** — `_create_fresh_timeline` creates new timeline with temp name, sets it current, waits for confirmation. Does NOT rename anything.
 2. **Populate** — `AppendToTimeline` runs while no `SetName` calls can interfere.
-3. **Rename** — Only AFTER all clips populated, rename old to `.giteo-old` and new to original name.
+3. **Rename** — Only AFTER all clips populated, rename old to `.vit-old` and new to original name.

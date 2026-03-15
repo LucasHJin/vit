@@ -1,4 +1,4 @@
-"""Giteo: Merge — Resolve Workspace > Scripts menu item.
+"""Vit: Merge — Resolve Workspace > Scripts menu item.
 
 Merges a branch into the current branch and restores the timeline.
 The `resolve` variable is injected by DaVinci Resolve.
@@ -14,14 +14,14 @@ except NameError:
     _real = None
 if _real:
     _root = os.path.dirname(os.path.dirname(_real))
-    if os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+    if os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
         sys.path.insert(0, _root)
 else:
-    _pf = os.path.expanduser("~/.giteo/package_path")
+    _pf = os.path.expanduser("~/.vit/package_path")
     if os.path.exists(_pf):
         with open(_pf) as _f:
             _root = _f.read().strip()
-        if _root and os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+        if _root and os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
             sys.path.insert(0, _root)
 
 
@@ -32,23 +32,23 @@ def main():
         auto_save_current_timeline, check_resolve, get_project_dir, ask_choice,
         show_error, show_message, _log,
     )
-    from giteo.core import (
+    from vit.core import (
         git_add, git_checkout_theirs, git_commit, git_current_branch,
         git_is_clean, git_list_branches, git_list_conflicted_files,
         git_merge, git_show_file, GitError,
     )
-    from giteo.deserializer import (
+    from vit.deserializer import (
         capture_restore_state,
         deserialize_timeline,
         restore_timeline_overlays,
         should_restore_overlays_only,
     )
-    from giteo.merge_utils import (
+    from vit.merge_utils import (
         domain_file_map,
         merge_timeline_domains_for_overlays,
         referenced_sidecars,
     )
-    from giteo.validator import validate_project, format_issues
+    from vit.validator import validate_project, format_issues
 
     def _load_domain_files_at_ref(ref_name):
         files = {}
@@ -164,7 +164,7 @@ def main():
             branch_name, "ORIG_HEAD", normalized_files, merge_plan
         )
         git_add(project_dir, sorted(staged_paths))
-        git_commit(project_dir, f"giteo: normalized '{branch_name}' merge as overlay")
+        git_commit(project_dir, f"vit: normalized '{branch_name}' merge as overlay")
         return True
 
     try:
@@ -176,7 +176,7 @@ def main():
 
     project_dir = get_project_dir()
     if not project_dir:
-        show_error("Giteo", "No giteo project found.\nRun 'giteo init <path>' from terminal.")
+        show_error("Vit", "No vit project found.\nRun 'vit init <path>' from terminal.")
         return
 
     current = git_current_branch(project_dir)
@@ -184,20 +184,20 @@ def main():
     other_branches = [b for b in branches if b != current]
 
     if not other_branches:
-        show_message("Giteo", "No other branches to merge.")
+        show_message("Vit", "No other branches to merge.")
         return
 
     _log(f"Current branch: {current}")
     _log(f"Merge candidates: {', '.join(other_branches)}")
 
     branch = ask_choice(
-        "Giteo: Merge Branch",
+        "Vit: Merge Branch",
         f"Current: {current}\nSelect branch to merge into '{current}':",
         other_branches,
     )
     if not branch:
         _log("No branch selected — cancelled.")
-        _log("To merge from CLI: giteo merge <branch>")
+        _log("To merge from CLI: vit merge <branch>")
         return
 
     # Always serialize the active timeline before merge. Resolve changes exist
@@ -211,13 +211,13 @@ def main():
 
     # Keep the existing safeguard for already-dirty project files on disk.
     if not git_is_clean(project_dir):
-        _log("Working directory still has uncommitted giteo files — committing them...")
-        git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+        _log("Working directory still has uncommitted vit files — committing them...")
+        git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
         try:
-            git_commit(project_dir, f"giteo: auto-save before merging '{branch}'")
+            git_commit(project_dir, f"vit: auto-save before merging '{branch}'")
         except GitError as e:
             if "nothing to commit" not in str(e):
-                show_error("Giteo", f"Auto-save failed:\n{e}")
+                show_error("Vit", f"Auto-save failed:\n{e}")
                 return
 
     _log(f"Merging '{branch}' into '{current}'...")
@@ -282,7 +282,7 @@ def main():
 
                 git_add(project_dir, sorted(staged_paths))
                 git_commit(project_dir,
-                           f"giteo: merged '{branch}' into '{current}' (auto-resolved)")
+                           f"vit: merged '{branch}' into '{current}' (auto-resolved)")
                 success = True
                 output = "Auto-resolved timeline conflicts with overlay-aware merge."
             except GitError as e:
@@ -318,16 +318,16 @@ def main():
                 deserialize_timeline(timeline, project, project_dir, resolve_app=_resolve)
                 msg += "\n\nTimeline restored."
 
-        show_message("Giteo", msg)
+        show_message("Vit", msg)
     else:
         show_error(
-            "Giteo",
+            "Vit",
             f"Merge has conflicts.\n\n{output}\n\n"
-            f"Use 'giteo merge {branch}' from terminal for AI-assisted resolution.",
+            f"Use 'vit merge {branch}' from terminal for AI-assisted resolution.",
         )
 
 
 try:
     main()
 except Exception:
-    print(f"[giteo] SCRIPT ERROR:\n{traceback.format_exc()}")
+    print(f"[vit] SCRIPT ERROR:\n{traceback.format_exc()}")

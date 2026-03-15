@@ -216,12 +216,12 @@ def _create_fresh_timeline(project, media_pool, old_timeline):
     old_name = old_timeline.GetName() or "Timeline"
     timestamp = int(time.time())
 
-    temp_name = f"giteo_temp_{timestamp}"
+    temp_name = f"vit_temp_{timestamp}"
     new_timeline = media_pool.CreateEmptyTimeline(temp_name)
 
     if not new_timeline:
         for i in range(1, 10):
-            new_timeline = media_pool.CreateEmptyTimeline(f"giteo_temp_{timestamp}_{i}")
+            new_timeline = media_pool.CreateEmptyTimeline(f"vit_temp_{timestamp}_{i}")
             if new_timeline:
                 break
 
@@ -314,7 +314,7 @@ def _create_timeline_with_clips(media_pool, clip_infos: List[dict],
 
     Returns (new_timeline, created_with_first_clip, remaining_clip_infos).
     """
-    temp_name = f"giteo_temp_{timestamp}"
+    temp_name = f"vit_temp_{timestamp}"
     new_timeline = None
     created_with_first = False
     first_only = [clip_infos[0]] if clip_infos else []
@@ -334,7 +334,7 @@ def _create_timeline_with_clips(media_pool, clip_infos: List[dict],
 
     if not new_timeline:
         for i in range(1, 5):
-            alt_name = f"giteo_temp_{timestamp}_{i}"
+            alt_name = f"vit_temp_{timestamp}_{i}"
             if first_only:
                 try:
                     new_timeline = media_pool.CreateTimelineFromClips(alt_name, first_only)
@@ -628,7 +628,7 @@ def _try_v2_placement(timeline, media_pool, item, project_dir,
     if target_track < 1:
         target_track = 1
 
-    temp_dir = os.path.join(project_dir, ".giteo", "temp")
+    temp_dir = os.path.join(project_dir, ".vit", "temp")
     os.makedirs(temp_dir, exist_ok=True)
     png_path = os.path.join(temp_dir, f"placeholder_{item.id}.png")
 
@@ -1277,7 +1277,7 @@ def deserialize_timeline(timeline, project, project_dir: str, resolve_app=None) 
     Args:
         timeline: Resolve Timeline object (current, will be replaced)
         project: Resolve Project object
-        project_dir: Path to the giteo project directory
+        project_dir: Path to the vit project directory
     """
     import time
 
@@ -1366,7 +1366,7 @@ def deserialize_timeline(timeline, project, project_dir: str, resolve_app=None) 
 
     # Phase 5: Rename (AFTER all population is done)
     try:
-        timeline.SetName(f"{old_name}.giteo-old.{timestamp}")
+        timeline.SetName(f"{old_name}.vit-old.{timestamp}")
     except (AttributeError, TypeError):
         pass
     try:
@@ -1374,7 +1374,7 @@ def deserialize_timeline(timeline, project, project_dir: str, resolve_app=None) 
     except (AttributeError, TypeError):
         pass
 
-    print(f"  Restored timeline '{metadata.timeline_name}' from giteo snapshot")
+    print(f"  Restored timeline '{metadata.timeline_name}' from vit snapshot")
 
 
 def restore_timeline_overlays(timeline, project_dir: str, resolve_app=None) -> None:
@@ -1388,4 +1388,4 @@ def restore_timeline_overlays(timeline, project_dir: str, resolve_app=None) -> N
     _clear_markers(timeline)
     _apply_markers(timeline, markers)
 
-    print("  Restored timeline overlays from giteo snapshot")
+    print("  Restored timeline overlays from vit snapshot")

@@ -6,8 +6,8 @@ import tempfile
 
 import pytest
 
-from giteo.serializer import serialize_timeline
-from giteo.json_writer import read_json, read_all_domain_files
+from vit.serializer import serialize_timeline
+from vit.json_writer import read_json, read_all_domain_files
 from tests.mock_resolve import create_test_timeline
 
 

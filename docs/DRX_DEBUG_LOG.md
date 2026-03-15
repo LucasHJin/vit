@@ -34,12 +34,12 @@ The Resolve scripting API is **write-only for color** on the Free edition:
 4. `restore_timeline_overlays` fixed to pass `video_tracks` for correct item ID matching
 
 ## Practical Impact
-On Free, giteo can:
+On Free, vit can:
 - **Detect** color changes (node count, tool names, LUT changes)
 - **Restore** grades from existing DRX files (from git history or Studio exports)
 - **Apply** CDL, clip adjustments, and LUTs that were captured on Studio
 
-On Free, giteo cannot:
+On Free, vit cannot:
 - **Capture** the actual color correction values (CDL, wheels, curves)
 - **Export** new DRX grade files
 

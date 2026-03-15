@@ -6,7 +6,7 @@ import tempfile
 
 import pytest
 
-from giteo.core import (
+from vit.core import (
     GitError,
     find_project_root,
     git_add,
@@ -25,16 +25,16 @@ from giteo.core import (
     git_status,
     is_git_repo,
 )
-from giteo.json_writer import _write_json
+from vit.json_writer import _write_json
 
 
 @pytest.fixture
 def project_dir():
-    """Create a temp directory and init a giteo project."""
+    """Create a temp directory and init a vit project."""
     with tempfile.TemporaryDirectory() as tmpdir:
         git_init(tmpdir)
         # Initial commit
-        git_add(tmpdir, [".giteo/", "timeline/", "assets/"])
+        git_add(tmpdir, [".vit/", "timeline/", "assets/"])
         git_commit(tmpdir, "initial commit")
         yield tmpdir
 
@@ -50,11 +50,11 @@ def _write_cuts(project_dir, items):
 
 
 def test_init_creates_structure(project_dir):
-    """git_init should create .giteo/, timeline/, assets/."""
-    assert os.path.isdir(os.path.join(project_dir, ".giteo"))
+    """git_init should create .vit/, timeline/, assets/."""
+    assert os.path.isdir(os.path.join(project_dir, ".vit"))
     assert os.path.isdir(os.path.join(project_dir, "timeline"))
     assert os.path.isdir(os.path.join(project_dir, "assets"))
-    assert os.path.isfile(os.path.join(project_dir, ".giteo", "config.json"))
+    assert os.path.isfile(os.path.join(project_dir, ".vit", "config.json"))
 
 
 def test_is_git_repo(project_dir):
@@ -157,7 +157,7 @@ def test_git_status(project_dir):
 
 
 def test_find_project_root(project_dir):
-    """find_project_root should find .giteo directory."""
+    """find_project_root should find .vit directory."""
     # From project dir itself
     found = find_project_root(project_dir)
     assert found == project_dir

@@ -1,4 +1,4 @@
-"""Giteo CLI — all user interaction goes through here."""
+"""Vit CLI — all user interaction goes through here."""
 
 import argparse
 import json
@@ -35,20 +35,20 @@ from .validator import format_issues, validate_project
 
 
 def _require_project() -> str:
-    """Find the giteo project root or exit with error."""
+    """Find the vit project root or exit with error."""
     root = find_project_root()
     if root is None:
-        print("Error: Not a giteo project. Run 'giteo init' first.")
+        print("Error: Not a vit project. Run 'vit init' first.")
         sys.exit(1)
     return root
 
 
 def cmd_init(args):
-    """Initialize a new giteo project."""
+    """Initialize a new vit project."""
     project_dir = args.path or os.getcwd()
 
-    if os.path.isdir(os.path.join(project_dir, ".giteo")):
-        print(f"Error: '{project_dir}' is already a giteo project.")
+    if os.path.isdir(os.path.join(project_dir, ".vit")):
+        print(f"Error: '{project_dir}' is already a vit project.")
         sys.exit(1)
 
     git_init(project_dir)
@@ -57,10 +57,10 @@ def cmd_init(args):
     from .models import Timeline
     write_timeline(project_dir, Timeline())
 
-    git_add(project_dir, [".giteo/", "timeline/", "assets/", ".gitignore"])
-    git_commit(project_dir, "giteo: initial snapshot")
-    print(f"  Initialized giteo project in {project_dir}")
-    print("  Created: .giteo/, timeline/, assets/")
+    git_add(project_dir, [".vit/", "timeline/", "assets/", ".gitignore"])
+    git_commit(project_dir, "vit: initial snapshot")
+    print(f"  Initialized vit project in {project_dir}")
+    print("  Created: .vit/, timeline/, assets/")
     print("  Initial snapshot committed.")
 
 
@@ -79,9 +79,9 @@ def cmd_commit(args):
     """Stage and commit current state."""
     project_dir = _require_project()
 
-    git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+    git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
 
-    message = args.message or "giteo: save version"
+    message = args.message or "vit: save version"
     try:
         commit_hash = git_commit(project_dir, message)
         print(f"  Committed: {message}")
@@ -133,9 +133,9 @@ def cmd_merge(args):
     # Auto-commit any outstanding changes before merge
     if not git_is_clean(project_dir):
         print(f"  Auto-saving uncommitted changes before merge...")
-        git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+        git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
         try:
-            git_commit(project_dir, f"giteo: auto-save before merging '{branch}'")
+            git_commit(project_dir, f"vit: auto-save before merging '{branch}'")
         except GitError as e:
             if "nothing to commit" not in str(e):
                 raise
@@ -188,7 +188,7 @@ def cmd_merge(args):
             )
             if resolved:
                 git_add(project_dir, ["timeline/", "assets/"])
-                git_commit(project_dir, f"giteo: AI-resolved merge of '{branch}'")
+                git_commit(project_dir, f"vit: AI-resolved merge of '{branch}'")
                 print("  Merge complete with AI resolution.")
             else:
                 if errors:
@@ -207,7 +207,7 @@ def cmd_merge(args):
             print(f"  Conflicted files: {', '.join(conflicted)}")
 
         if args.no_ai:
-            print("  Resolve conflicts manually, then run 'giteo commit'.")
+            print("  Resolve conflicts manually, then run 'vit commit'.")
             return
 
         # Try AI resolution
@@ -227,7 +227,7 @@ def cmd_merge(args):
         )
         if resolved:
             git_add(project_dir, ["timeline/", "assets/"])
-            git_commit(project_dir, f"giteo: AI-resolved merge of '{branch}'")
+            git_commit(project_dir, f"vit: AI-resolved merge of '{branch}'")
             print("  Merge complete with AI resolution.")
         else:
             print("  AI merge failed. Resolve conflicts manually.")
@@ -396,12 +396,12 @@ else:
     )
 
 RESOLVE_SCRIPT_NAMES = [
-    "giteo_panel.py",
+    "vit_panel.py",
 ]
 
 
 _RESOLVE_MENU_NAMES = {
-    "giteo_panel.py": "Giteo.py",
+    "vit_panel.py": "Vit.py",
 }
 
 
@@ -440,34 +440,34 @@ def cmd_install_resolve(args):
             os.symlink(source, dest)
         print(f"  Linked: {menu_name} → {source}")
 
-    # Save the repo root path so Resolve scripts can find the giteo package
+    # Save the repo root path so Resolve scripts can find the vit package
     # even if __file__ or symlink resolution fails in Resolve's Python
-    giteo_user_dir = os.path.expanduser("~/.giteo")
-    os.makedirs(giteo_user_dir, exist_ok=True)
-    with open(os.path.join(giteo_user_dir, "package_path"), "w") as f:
+    vit_user_dir = os.path.expanduser("~/.vit")
+    os.makedirs(vit_user_dir, exist_ok=True)
+    with open(os.path.join(vit_user_dir, "package_path"), "w") as f:
         f.write(package_dir)
     print(f"  Saved package path: {package_dir}")
 
     print(f"\n  Installed {len(RESOLVE_SCRIPT_NAMES)} script(s) to Resolve.")
-    print("  Restart Resolve, then run Workspace > Scripts > Giteo for the unified panel.")
+    print("  Restart Resolve, then run Workspace > Scripts > Vit for the unified panel.")
 
 
 def cmd_uninstall_resolve(args):
     """Remove Resolve plugin symlinks."""
     # Include legacy script names so old installs get cleaned up
-    _ALL_GITEO_NAMES = [
-        "Giteo.py",
-        "Giteo - Panel.py",
-        "Giteo - Save Version.py",
-        "Giteo - New Branch.py",
-        "Giteo - Merge Branch.py",
-        "Giteo - Switch Branch.py",
-        "Giteo - Status.py",
-        "Giteo - Push.py",
-        "Giteo - Pull & Restore.py",
+    _ALL_VIT_NAMES = [
+        "Vit.py",
+        "Vit - Panel.py",
+        "Vit - Save Version.py",
+        "Vit - New Branch.py",
+        "Vit - Merge Branch.py",
+        "Vit - Switch Branch.py",
+        "Vit - Status.py",
+        "Vit - Push.py",
+        "Vit - Pull & Restore.py",
     ]
     removed = 0
-    for menu_name in _ALL_GITEO_NAMES:
+    for menu_name in _ALL_VIT_NAMES:
         dest = os.path.join(RESOLVE_SCRIPTS_DIR, menu_name)
         if os.path.islink(dest) or os.path.exists(dest):
             os.remove(dest)
@@ -477,20 +477,20 @@ def cmd_uninstall_resolve(args):
     if removed:
         print(f"\n  Uninstalled {removed} scripts from Resolve.")
     else:
-        print("  No giteo scripts found in Resolve.")
+        print("  No vit scripts found in Resolve.")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="giteo",
+        prog="vit",
         description="Git for Video Editing — version control timeline metadata",
     )
-    parser.add_argument("--version", action="version", version=f"giteo {__version__}")
+    parser.add_argument("--version", action="version", version=f"vit {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # init
-    p_init = subparsers.add_parser("init", help="Initialize a new giteo project")
+    p_init = subparsers.add_parser("init", help="Initialize a new vit project")
     p_init.add_argument("path", nargs="?", help="Project directory (default: current)")
     p_init.set_defaults(func=cmd_init)
 

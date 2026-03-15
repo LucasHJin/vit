@@ -1,10 +1,10 @@
-"""Giteo Panel — PySide6 UI subprocess (VIT Design).
+"""Vit Panel — PySide6 UI subprocess (VIT Design).
 
-This runs as a standalone process spawned by giteo_panel_launcher.py.
+This runs as a standalone process spawned by vit_panel_launcher.py.
 Communicates with the launcher via a JSON-over-TCP socket for operations
 that require the DaVinci Resolve API (serialize, deserialize).
 
-Usage: python giteo_panel_qt.py --project-dir /path/to/project --port 12345
+Usage: python vit_panel_qt.py --project-dir /path/to/project --port 12345
 """
 import argparse
 import json
@@ -1142,8 +1142,8 @@ class CommitGraphWidget(QWidget):
         is_head = commit.get("is_head", False) or commit.get("hash") == self._head
         message = commit.get("message", "")
 
-        # Strip "giteo: " prefix if present
-        if message.startswith("giteo: "):
+        # Strip "vit: " prefix if present
+        if message.startswith("vit: "):
             message = message[7:]
 
         x = self._lane_x(self._lanes[index])
@@ -1259,8 +1259,8 @@ class CommitGraphSection(QWidget):
 
 # -- Main Window --------------------------------------------------------------
 
-class GiteoPanel(QMainWindow):
-    """Main Giteo panel window (VIT Design)."""
+class VitPanel(QMainWindow):
+    """Main Vit panel window (VIT Design)."""
 
     _append_log_signal = Signal(str, str)
 
@@ -1434,7 +1434,7 @@ class GiteoPanel(QMainWindow):
         main_layout.addWidget(self._tab)
 
         # Initial data load
-        self._append_log("Giteo panel ready.")
+        self._append_log("Vit panel ready.")
         self.refresh_branches_list()  # populates branch label + switch/merge combos
         self.refresh_changes()
         self.refresh_commits()
@@ -1657,7 +1657,7 @@ class GiteoPanel(QMainWindow):
 # -- Entry Point --------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Giteo PySide6 Panel (VIT)")
+    parser = argparse.ArgumentParser(description="Vit PySide6 Panel (VIT)")
     parser.add_argument("--project-dir", required=True)
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
@@ -1666,7 +1666,7 @@ def main():
     app.setApplicationName("vit")
 
     ipc = IPCClient(args.port)
-    window = GiteoPanel(ipc, args.project_dir)
+    window = VitPanel(ipc, args.project_dir)
     window.show()
 
     sys.exit(app.exec())

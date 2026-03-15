@@ -30,7 +30,7 @@ _PROJECT_GITIGNORE = """\
 Thumbs.db
 Desktop.ini
 
-# Media files — giteo tracks metadata, not binaries
+# Media files — vit tracks metadata, not binaries
 *.mov
 *.mp4
 *.mxf
@@ -50,7 +50,7 @@ Desktop.ini
 Render/
 Deliver/
 
-# DaVinci Resolve project files (managed by Resolve, not giteo)
+# DaVinci Resolve project files (managed by Resolve, not vit)
 *.drp
 
 # Environment / secrets
@@ -64,17 +64,17 @@ __pycache__/
 
 
 def git_init(project_dir: str) -> None:
-    """Initialize a new git repo and create .giteo/ config."""
+    """Initialize a new git repo and create .vit/ config."""
     os.makedirs(project_dir, exist_ok=True)
     _run(["init"], cwd=project_dir)
 
-    # Create .giteo config directory
-    giteo_dir = os.path.join(project_dir, ".giteo")
-    os.makedirs(giteo_dir, exist_ok=True)
+    # Create .vit config directory
+    vit_dir = os.path.join(project_dir, ".vit")
+    os.makedirs(vit_dir, exist_ok=True)
 
     import json
     config = {"version": "0.1.0", "nle": "resolve"}
-    config_path = os.path.join(giteo_dir, "config.json")
+    config_path = os.path.join(vit_dir, "config.json")
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2, sort_keys=True)
 
@@ -244,10 +244,10 @@ def is_git_repo(project_dir: str) -> bool:
 
 
 def find_project_root(start_dir: Optional[str] = None) -> Optional[str]:
-    """Find the giteo project root by looking for .giteo/ directory."""
+    """Find the vit project root by looking for .vit/ directory."""
     current = start_dir or os.getcwd()
     while True:
-        if os.path.isdir(os.path.join(current, ".giteo")):
+        if os.path.isdir(os.path.join(current, ".vit")):
             return current
         parent = os.path.dirname(current)
         if parent == current:

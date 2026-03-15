@@ -1,8 +1,8 @@
-"""Giteo: Panel — Single unified UI for all Giteo operations.
+"""Vit: Panel — Single unified UI for all Vit operations.
 
 Opens a tkinter window with buttons for Save, Branch, Switch, Merge, Push, Pull, Status.
 Works on DaVinci Resolve Free (no Studio license required).
-Run from Workspace > Scripts > Giteo - Panel.
+Run from Workspace > Scripts > Vit - Panel.
 """
 import os
 import sys
@@ -16,14 +16,14 @@ except NameError:
     _real = None
 if _real:
     _root = os.path.dirname(os.path.dirname(_real))
-    if os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+    if os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
         sys.path.insert(0, _root)
 else:
-    _pf = os.path.expanduser("~/.giteo/package_path")
+    _pf = os.path.expanduser("~/.vit/package_path")
     if os.path.exists(_pf):
         with open(_pf) as _f:
             _root = _f.read().strip()
-        if _root and os.path.isdir(os.path.join(_root, "giteo")) and _root not in sys.path:
+        if _root and os.path.isdir(os.path.join(_root, "vit")) and _root not in sys.path:
             sys.path.insert(0, _root)
 
 
@@ -34,7 +34,7 @@ def main():
         _resolve = None
 
     if _resolve is None:
-        print("[giteo] This script must be run from DaVinci Resolve (Workspace > Scripts).")
+        print("[vit] This script must be run from DaVinci Resolve (Workspace > Scripts).")
         return
 
     from resolve_plugin.plugin_utils import (
@@ -44,12 +44,12 @@ def main():
 
     project_dir = get_project_dir()
     if not project_dir:
-        show_error("Giteo", "No giteo project found.\nRun 'giteo init <path>' from terminal.")
+        show_error("Vit", "No vit project found.\nRun 'vit init <path>' from terminal.")
         return
 
     # Create tkinter window
     root = tk.Tk()
-    root.title("Giteo")
+    root.title("Vit")
     root.geometry("340x480")
     root.resizable(False, True)
     root.lift()
@@ -62,7 +62,7 @@ def main():
 
     def refresh_branch():
         try:
-            from giteo.core import git_current_branch
+            from vit.core import git_current_branch
             branch = git_current_branch(project_dir)
             branch_var.set(f"Branch: {branch}")
         except Exception as e:
@@ -88,13 +88,13 @@ def main():
     btn_frame.pack(fill=tk.X, padx=10, pady=5)
 
     def on_save():
-        from giteo.serializer import serialize_timeline
-        from giteo.core import git_add, git_commit, GitError
+        from vit.serializer import serialize_timeline
+        from vit.core import git_add, git_commit, GitError
 
         project = _resolve.GetProjectManager().GetCurrentProject()
         timeline = project.GetCurrentTimeline()
         if not timeline:
-            show_error("Giteo", "No timeline is currently active.")
+            show_error("Vit", "No timeline is currently active.")
             return
         msg = ask_string("Save Version", "Commit message:", initial="save version")
         if not msg:
@@ -103,8 +103,8 @@ def main():
         append_log(f"Saving: {msg}")
         try:
             serialize_timeline(timeline, project, project_dir, resolve_app=_resolve)
-            git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
-            hash_val = git_commit(project_dir, f"giteo: {msg}")
+            git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
+            hash_val = git_commit(project_dir, f"vit: {msg}")
             append_log(f"Saved. Commit: {hash_val}")
             refresh_branch()
         except GitError as e:
@@ -112,10 +112,10 @@ def main():
                 append_log("Nothing to commit — unchanged.")
             else:
                 append_log(f"Error: {e}")
-                show_error("Giteo", str(e))
+                show_error("Vit", str(e))
 
     def on_new_branch():
-        from giteo.core import git_branch, git_current_branch, git_list_branches
+        from vit.core import git_branch, git_current_branch, git_list_branches
 
         current = git_current_branch(project_dir)
         name = ask_string("New Branch", f"Current: {current}\nNew branch name:")
@@ -128,14 +128,14 @@ def main():
             git_branch(project_dir, name)
             append_log(f"Switched to '{name}'.")
             refresh_branch()
-            show_message("Giteo", f"Created branch '{name}'")
+            show_message("Vit", f"Created branch '{name}'")
         except Exception as e:
             append_log(f"Error: {e}")
-            show_error("Giteo", str(e))
+            show_error("Vit", str(e))
 
     def on_switch():
-        from giteo.core import git_checkout, git_current_branch, git_list_branches
-        from giteo.deserializer import deserialize_timeline
+        from vit.core import git_checkout, git_current_branch, git_list_branches
+        from vit.deserializer import deserialize_timeline
 
         current = git_current_branch(project_dir)
         branches = git_list_branches(project_dir)
@@ -151,7 +151,7 @@ def main():
                 refresh_branch()
             except Exception as e:
                 append_log(f"Error: {e}")
-                show_error("Giteo", str(e))
+                show_error("Vit", str(e))
                 return
         else:
             append_log("Restoring timeline from current branch...")
@@ -160,25 +160,25 @@ def main():
         if timeline:
             deserialize_timeline(timeline, project, project_dir)
             append_log("Timeline restored.")
-            show_message("Giteo", f"Restored timeline from '{target}'.")
+            show_message("Vit", f"Restored timeline from '{target}'.")
         else:
             append_log("No active timeline to restore.")
 
     def on_merge():
-        from giteo.core import (
+        from vit.core import (
             git_add, git_commit, git_merge, git_is_clean,
             git_current_branch, git_list_branches, git_list_conflicted_files,
             git_checkout_theirs, GitError,
         )
-        from giteo.serializer import serialize_timeline
-        from giteo.deserializer import deserialize_timeline
-        from giteo.validator import validate_project, format_issues
+        from vit.serializer import serialize_timeline
+        from vit.deserializer import deserialize_timeline
+        from vit.validator import validate_project, format_issues
 
         current = git_current_branch(project_dir)
         branches = [b for b in git_list_branches(project_dir) if b != current]
         if not branches:
             append_log("No other branches to merge.")
-            show_message("Giteo", "No other branches to merge.")
+            show_message("Vit", "No other branches to merge.")
             return
         target = ask_choice("Merge Branch", f"Merging into '{current}':\nSelect branch:", branches)
         if not target:
@@ -191,14 +191,14 @@ def main():
             timeline = project.GetCurrentTimeline()
             if timeline:
                 serialize_timeline(timeline, project, project_dir, resolve_app=_resolve)
-            git_add(project_dir, ["timeline/", "assets/", ".giteo/", ".gitignore"])
+            git_add(project_dir, ["timeline/", "assets/", ".vit/", ".gitignore"])
             try:
-                git_commit(project_dir, f"giteo: auto-save before merging '{target}'")
+                git_commit(project_dir, f"vit: auto-save before merging '{target}'")
                 append_log("Auto-saved.")
             except GitError as e:
                 if "nothing to commit" not in str(e):
                     append_log(f"Auto-save failed: {e}")
-                    show_error("Giteo", str(e))
+                    show_error("Vit", str(e))
                     return
         success, output = git_merge(project_dir, target)
         if not success:
@@ -211,7 +211,7 @@ def main():
                 try:
                     git_checkout_theirs(project_dir, auto_resolvable)
                     git_add(project_dir, auto_resolvable)
-                    git_commit(project_dir, f"giteo: merged '{target}' (auto-resolved)")
+                    git_commit(project_dir, f"vit: merged '{target}' (auto-resolved)")
                     success = True
                     append_log("Auto-resolved.")
                 except GitError as e:
@@ -228,31 +228,31 @@ def main():
                 deserialize_timeline(timeline, project, project_dir)
                 append_log("Timeline restored.")
             refresh_branch()
-            show_message("Giteo", f"Merged '{target}' into '{current}'.")
+            show_message("Vit", f"Merged '{target}' into '{current}'.")
         else:
-            append_log("Merge has conflicts. Use 'giteo merge' from terminal for AI resolution.")
-            show_error("Giteo", f"Merge conflicts.\nUse terminal: giteo merge {target}")
+            append_log("Merge has conflicts. Use 'vit merge' from terminal for AI resolution.")
+            show_error("Vit", f"Merge conflicts.\nUse terminal: vit merge {target}")
 
     def on_push():
-        from giteo.core import git_current_branch, git_push, GitError
+        from vit.core import git_current_branch, git_push, GitError
 
         branch = git_current_branch(project_dir)
         append_log(f"Pushing '{branch}'...")
         try:
             output = git_push(project_dir, "origin", branch)
             append_log(f"Pushed. {output.strip()}")
-            show_message("Giteo", f"Pushed '{branch}' to origin.")
+            show_message("Vit", f"Pushed '{branch}' to origin.")
         except GitError as e:
             err = str(e)
             append_log(f"Push failed: {err}")
             if "No configured" in err or "does not appear" in err:
-                show_error("Giteo: Push", "No remote configured.\nFrom terminal: git remote add origin <url>")
+                show_error("Vit: Push", "No remote configured.\nFrom terminal: git remote add origin <url>")
             else:
-                show_error("Giteo: Push", str(e))
+                show_error("Vit: Push", str(e))
 
     def on_pull():
-        from giteo.core import git_current_branch, git_pull, GitError
-        from giteo.deserializer import deserialize_timeline
+        from vit.core import git_current_branch, git_pull, GitError
+        from vit.deserializer import deserialize_timeline
 
         branch = git_current_branch(project_dir)
         append_log(f"Pulling '{branch}'...")
@@ -263,19 +263,19 @@ def main():
             err = str(e)
             append_log(f"Pull failed: {err}")
             if "No configured" in err or "does not appear" in err:
-                show_error("Giteo: Pull", "No remote configured.\nFrom terminal: git remote add origin <url>")
+                show_error("Vit: Pull", "No remote configured.\nFrom terminal: git remote add origin <url>")
             else:
-                show_error("Giteo: Pull", str(e))
+                show_error("Vit: Pull", str(e))
             return
         project = _resolve.GetProjectManager().GetCurrentProject()
         timeline = project.GetCurrentTimeline()
         if timeline:
             deserialize_timeline(timeline, project, project_dir)
             append_log("Timeline restored.")
-        show_message("Giteo", f"Pulled '{branch}' and restored timeline.")
+        show_message("Vit", f"Pulled '{branch}' and restored timeline.")
 
     def on_status():
-        from giteo.core import git_current_branch, git_status, git_log
+        from vit.core import git_current_branch, git_status, git_log
 
         branch = git_current_branch(project_dir)
         status = git_status(project_dir)
@@ -302,7 +302,7 @@ def main():
 
     # Initialize
     refresh_branch()
-    append_log("Giteo panel ready.")
+    append_log("Vit panel ready.")
 
     # Run
     root.mainloop()
@@ -311,4 +311,4 @@ def main():
 try:
     main()
 except Exception:
-    print(f"[giteo] PANEL ERROR:\n{traceback.format_exc()}")
+    print(f"[vit] PANEL ERROR:\n{traceback.format_exc()}")

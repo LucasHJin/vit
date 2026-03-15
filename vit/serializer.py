@@ -746,7 +746,7 @@ def serialize_timeline(timeline, project, project_dir: str,
     Args:
         timeline: Resolve Timeline object (from resolve API)
         project: Resolve Project object
-        project_dir: Path to the giteo project directory
+        project_dir: Path to the vit project directory
         resolve_app: Optional Resolve application object (for page switching
                      during DRX grade export). Pass the `resolve` global.
 

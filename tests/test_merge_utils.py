@@ -1,4 +1,4 @@
-from giteo.merge_utils import merge_timeline_domains_for_overlays, referenced_sidecars
+from vit.merge_utils import merge_timeline_domains_for_overlays, referenced_sidecars
 
 
 def test_title_collision_becomes_v2_overlay():

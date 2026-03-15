@@ -1,8 +1,8 @@
-# Giteo — Git for Video Editing
+# Vit — Git for Video Editing
 
 ## Project Purpose
 
-Giteo brings git-style version control to video editing. Collaborators (editors, colorists, sound designers) work in parallel on branches and merge changes, like developers with code.
+Vit brings git-style version control to video editing. Collaborators (editors, colorists, sound designers) work in parallel on branches and merge changes, like developers with code.
 
 **Core insight:** Version control *edit decisions and timeline metadata* (as JSON), not raw video files. Use actual `git` as the backend.
 
@@ -15,14 +15,14 @@ Video editors, colorists, sound designers, assistant editors.
 Sequential handoffs (Editor → Colorist → Sound) are slow. No parallel work, no structured history, no merge of creative branches.
 
 ### The Solution
-Each collaborator works on a branch. Giteo serializes the NLE timeline into domain-split JSON (cuts, color, audio, etc.) so different roles edit different files. Git merges them cleanly.
+Each collaborator works on a branch. Vit serializes the NLE timeline into domain-split JSON (cuts, color, audio, etc.) so different roles edit different files. Git merges them cleanly.
 
 ---
 
 ## Product Philosophy
 
 - **Metadata, not media** — timeline decisions are the merge surface
-- **Use git, don't reimplement it** — all commands go through `giteo`, never raw `git`
+- **Use git, don't reimplement it** — all commands go through `vit`, never raw `git`
 - **Domain-split JSON** — cuts, color, audio, effects, markers = different files = clean merges
 - **AI-assisted semantic merging** — LLM resolves cross-domain conflicts (e.g., deleted clip still in color.json)
 - **Snapshot-based** — each commit = full timeline state
@@ -34,12 +34,12 @@ Each collaborator works on a branch. Giteo serializes the NLE timeline into doma
 ## System Architecture
 
 ```
-Resolve (Scripts menu) → giteo-core (Python) → Git (system binary)
+Resolve (Scripts menu) → vit-core (Python) → Git (system binary)
 ```
 
-- **giteo-core:** serializer.py, deserializer.py, json_writer.py, core.py, ai_merge.py, differ.py, cli.py
+- **vit-core:** serializer.py, deserializer.py, json_writer.py, core.py, ai_merge.py, differ.py, cli.py
 - **Resolve scripts:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
-- **Fallback:** If Resolve API too limited → FCPXML + OpenTimelineIO; giteo-core stays the same.
+- **Fallback:** If Resolve API too limited → FCPXML + OpenTimelineIO; vit-core stays the same.
 
 ---
 
@@ -58,20 +58,20 @@ Resolve (Scripts menu) → giteo-core (Python) → Git (system binary)
 ## Repository Structure
 
 ```
-giteo/
-├── giteo/           # cli.py, core.py, models.py, serializer.py, deserializer.py,
+vit/
+├── vit/           # cli.py, core.py, models.py, serializer.py, deserializer.py,
 │                   # json_writer.py, ai_merge.py, validator.py, differ.py
-├── resolve_plugin/  # giteo_commit.py, giteo_branch.py, giteo_merge.py, giteo_status.py, giteo_restore.py
+├── resolve_plugin/  # vit_commit.py, vit_branch.py, vit_merge.py, vit_status.py, vit_restore.py
 ├── tests/
 └── docs/           # Optional top-up: JSON_SCHEMAS.md, RESOLVE_API_LIMITATIONS.md, AI_MERGE_DETAILS.md
 ```
 
-### Giteo-managed project (user's video repo)
+### Vit-managed project (user's video repo)
 
 ```
 my-video-project/
 ├── .git/
-├── .giteo/config.json
+├── .vit/config.json
 ├── timeline/       # cuts.json, color.json, audio.json, effects.json, markers.json, metadata.json
 └── assets/        # manifest.json (paths, checksums)
 ```
@@ -95,27 +95,27 @@ Different roles = different files = conflict-free merges. **Full JSON schemas:**
 
 ---
 
-## Giteo Commands
+## Vit Commands
 
 | Action | Command | Under the hood |
 |--------|---------|----------------|
-| Start tracking | `giteo init` | `.giteo/`, `git init`, initial snapshot |
-| Stage | `giteo add` | Serialize → JSON, `git add timeline/ assets/` |
-| Save version | `giteo commit -m "msg"` | `giteo add` + `git commit` |
-| New approach | `giteo branch experiment` | `git checkout -b` |
-| Switch | `giteo checkout main` | `git checkout`, deserialize → Resolve |
-| Combine | `giteo merge color-grade` | `git merge` → validate → AI if needed |
-| See changes | `giteo diff` | Human-readable timeline diff |
-| History | `giteo log` | Formatted `git log` |
-| Undo | `giteo revert` | `git revert HEAD` |
-| Share | `giteo push` / `giteo pull` | Standard git remote |
-| Status | `giteo status` | Giteo-formatted status |
+| Start tracking | `vit init` | `.vit/`, `git init`, initial snapshot |
+| Stage | `vit add` | Serialize → JSON, `git add timeline/ assets/` |
+| Save version | `vit commit -m "msg"` | `vit add` + `git commit` |
+| New approach | `vit branch experiment` | `git checkout -b` |
+| Switch | `vit checkout main` | `git checkout`, deserialize → Resolve |
+| Combine | `vit merge color-grade` | `git merge` → validate → AI if needed |
+| See changes | `vit diff` | Human-readable timeline diff |
+| History | `vit log` | Formatted `git log` |
+| Undo | `vit revert` | `git revert HEAD` |
+| Share | `vit push` / `vit pull` | Standard git remote |
+| Status | `vit status` | Vit-formatted status |
 
 ---
 
 ## Resolve Plugin Scripts
 
-Standalone Python files in `resolve_plugin/`. Pattern: add giteo to path, get `resolve`/`project`/`timeline`, call `serialize_timeline` + `git_add` + `git_commit`. Symlink to Resolve's Edit scripts folder.
+Standalone Python files in `resolve_plugin/`. Pattern: add vit to path, get `resolve`/`project`/`timeline`, call `serialize_timeline` + `git_add` + `git_commit`. Symlink to Resolve's Edit scripts folder.
 
 ---
 
@@ -135,7 +135,7 @@ Flow: Try git merge → post-merge validation (validator.py) → if issues, send
 
 ## Human-Readable Diffs
 
-`giteo diff` example:
+`vit diff` example:
 
 ```
 CUTS: + Added clip 'B-Roll_Harbor.mov' on V2 at 00:00:10:00
@@ -174,6 +174,6 @@ Serializer tests (mock Resolve), git wrapper tests, merge tests, validation test
 
 ## Scope Boundaries
 
-**In scope:** Resolve serializer/deserializer, full giteo CLI, domain-split JSON, AI merge (Gemini), post-merge validation, human-readable diff, asset manifest, 5 Resolve plugin scripts.
+**In scope:** Resolve serializer/deserializer, full vit CLI, domain-split JSON, AI merge (Gemini), post-merge validation, human-readable diff, asset manifest, 5 Resolve plugin scripts.
 
 **Out of scope:** Web UI, hosted platform, database, media storage/sync, conflict GUI, locking, real-time collab, other NLEs (fallback only), LUT versioning, auth.
