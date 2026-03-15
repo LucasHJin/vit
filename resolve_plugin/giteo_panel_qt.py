@@ -13,7 +13,7 @@ import sys
 import threading
 
 from PySide6.QtCore import (
-    Qt, Signal, QPropertyAnimation, QRect, QEasingCurve, QTimer, QSize, QByteArray
+    Qt, Signal, QPropertyAnimation, QRect, QEasingCurve, QTimer, QSize, QByteArray, QRectF
 )
 from PySide6.QtGui import (
     QFont, QColor, QPalette, QIcon, QGuiApplication, QPainter,
@@ -137,7 +137,7 @@ QWidget {{
 QLabel#titleLabel {{
     color: {TEXT_PRIMARY};
     font-size: 16px;
-    font-weight: 300;
+    font-weight: 400;
 }}
 QLabel#branchLabel {{
     color: {ORANGE};
@@ -188,6 +188,20 @@ QPushButton#sectionToggle {{
 }}
 QPushButton#sectionToggle:hover {{
     background-color: rgba(255, 180, 99, 0.1);
+}}
+QPushButton#headerCloseBtn, QPushButton#headerCollapseBtn {{
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    color: {TEXT_PRIMARY};
+    font-size: 16px;
+    font-weight: 500;
+    min-width: 24px;
+    min-height: 24px;
+}}
+QPushButton#headerCloseBtn:hover, QPushButton#headerCollapseBtn:hover {{
+    background-color: rgba(255, 180, 99, 0.15);
+    border-radius: 4px;
 }}
 QLineEdit {{
     background-color: {BG_INPUT};
@@ -286,21 +300,38 @@ QListWidget::item:hover {{
 
 # -- Utility Functions --------------------------------------------------------
 
-def svg_to_pixmap(svg_str: str, color: str, size: int = 16) -> QPixmap:
-    """Convert SVG string to QPixmap with specified color."""
+def svg_to_pixmap(svg_str: str, color: str, size: int = 16, dpr: float = 1.0) -> QPixmap:
+    """Render SVG to pixmap. size=logical size; dpr>1 yields high-res for Retina."""
     svg_data = svg_str.format(color=color).encode('utf-8')
     renderer = QSvgRenderer(QByteArray(svg_data))
-    pixmap = QPixmap(size, size)
+    px = max(1, int(size * dpr))
+    pixmap = QPixmap(px, px)
+    if dpr != 1.0:
+        pixmap.setDevicePixelRatio(dpr)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
-    renderer.render(painter)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
+    renderer.render(painter, QRectF(0, 0, px, px))
     painter.end()
     return pixmap
 
 
 def svg_to_icon(svg_str: str, color: str, size: int = 16) -> QIcon:
-    """Convert SVG string to QIcon with specified color."""
-    return QIcon(svg_to_pixmap(svg_str, color, size))
+    """QIcon with 1x and 2x pixmaps so Qt picks crisp version on Retina."""
+    icon = QIcon()
+    icon.addPixmap(svg_to_pixmap(svg_str, color, size, dpr=1.0))
+    icon.addPixmap(svg_to_pixmap(svg_str, color, size, dpr=2.0))
+    return icon
+
+
+def svg_to_pixmap_for_label(svg_str: str, color: str, size: int = 16) -> QPixmap:
+    """Pixmap for QLabel with 2x variant for Retina (header logo, etc)."""
+    try:
+        dpr = QGuiApplication.primaryScreen().devicePixelRatio()
+    except Exception:
+        dpr = 2.0
+    return svg_to_pixmap(svg_str, color, size, dpr=max(1.0, dpr))
 
 
 # -- IPC Client ---------------------------------------------------------------
@@ -452,7 +483,7 @@ class CollapsibleSection(QWidget):
                 text-align: left;
                 color: {TEXT_PRIMARY};
                 font-size: 12px;
-                font-weight: 500;
+                font-weight: 400;
                 letter-spacing: 1px;
             }}
             QPushButton#sectionToggle:hover {{
@@ -718,8 +749,9 @@ class ChangesSection(QWidget):
         layout.setSpacing(10)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Input row: grey container, dark right panel extends to border
+        # Input row: grey container, compact height to match Actions inputs
         input_frame = QFrame()
+        input_frame.setFixedHeight(40)
         input_frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {BG_PANEL};
@@ -729,8 +761,8 @@ class ChangesSection(QWidget):
         """)
         input_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         input_row = QHBoxLayout(input_frame)
-        input_row.setSpacing(10)
-        input_row.setContentsMargins(6, 6, 6, 6)
+        input_row.setSpacing(6)
+        input_row.setContentsMargins(6, 4, 6, 4)
 
         self._message_input = QLineEdit()
         self._message_input.setPlaceholderText("Commit message...")
@@ -741,7 +773,7 @@ class ChangesSection(QWidget):
                 color: {TEXT_PRIMARY};
                 border: none;
                 border-radius: 2px;
-                padding: 6px 8px;
+                padding: 4px 8px;
                 font-size: 13px;
                 min-width: 0;
             }}
@@ -750,24 +782,6 @@ class ChangesSection(QWidget):
             }}
         """)
         input_row.addWidget(self._message_input, stretch=1)
-
-        # Group 2.svg: no background, hover darkens area around icon
-        selector_btn = QPushButton()
-        selector_btn.setIcon(svg_to_icon(SVG_COMMIT_SELECTOR, TEXT_PRIMARY, 12))
-        selector_btn.setFixedSize(24, 24)
-        selector_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                padding: 0;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(0, 0, 0, 0.2);
-                border-radius: 4px;
-            }}
-        """)
-        selector_btn.setToolTip("AI-assisted commit message")
-        input_row.addWidget(selector_btn, alignment=Qt.AlignRight | Qt.AlignVCenter)
 
         layout.addWidget(input_frame)
 
@@ -1110,34 +1124,18 @@ class GiteoPanel(QMainWindow):
         content_layout.setSpacing(12)
         content_layout.setContentsMargins(16, 12, 16, 12)
 
-        # Header
+        # Header — 4px left margin to align X with ACTIONS dropdown
         header = QHBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(4)
+        header.setContentsMargins(2, 0, 0, 0)
 
-        # Close button (top left) — no background, square, icon only
-        close_btn = QPushButton()
-        close_btn.setIcon(svg_to_icon(SVG_CLOSE, TEXT_PRIMARY, 12))
-        close_btn.setIconSize(QSize(12, 12))
+        # Close button (top left) — aligned with section dropdown
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("headerCloseBtn")
         close_btn.setFixedSize(24, 24)
         close_btn.setCursor(Qt.PointingHandCursor)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-            }}
-        """)
         close_btn.clicked.connect(self.close)
-        header.addWidget(close_btn, alignment=Qt.AlignVCenter)
-
-        # Logo (Group 13.svg) — next to X
-        logo_label = QLabel()
-        logo_label.setPixmap(svg_to_pixmap(SVG_GROUP_13, TEXT_PRIMARY, 24))
-        logo_label.setFixedSize(24, 24)
-        header.addWidget(logo_label, alignment=Qt.AlignVCenter)
+        header.addWidget(close_btn, alignment=Qt.AlignLeft | Qt.AlignVCenter)
 
         # Title
         title = QLabel("vit")
@@ -1151,22 +1149,11 @@ class GiteoPanel(QMainWindow):
         self.branch_label.setObjectName("branchLabel")
         header.addWidget(self.branch_label, alignment=Qt.AlignVCenter)
 
-        # Collapse chevron — no background, square, icon only
-        self._chevron_btn = QPushButton()
-        self._chevron_btn.setIcon(svg_to_icon(SVG_CHEVRON_RIGHT, TEXT_PRIMARY, 12))
-        self._chevron_btn.setIconSize(QSize(12, 12))
+        # Collapse chevron — orange for visibility
+        self._chevron_btn = QPushButton("▶")
+        self._chevron_btn.setObjectName("headerCollapseBtn")
         self._chevron_btn.setFixedSize(24, 24)
         self._chevron_btn.setCursor(Qt.PointingHandCursor)
-        self._chevron_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-            }}
-        """)
         self._chevron_btn.clicked.connect(self.toggle_panel)
         header.addWidget(self._chevron_btn, alignment=Qt.AlignVCenter)
 
