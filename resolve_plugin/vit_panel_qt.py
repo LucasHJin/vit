@@ -1144,7 +1144,7 @@ class CommitGraphWidget(QWidget):
 
         # Strip "vit: " prefix if present
         if message.startswith("vit: "):
-            message = message[7:]
+            message = message[5:]
 
         x = self._lane_x(self._lanes[index])
         y = self._get_commit_y(index)
@@ -1171,8 +1171,8 @@ class CommitGraphWidget(QWidget):
                 painter.setBrush(QBrush(color))
             painter.drawEllipse(node_rect)
 
-        # Text starts after the rightmost possible lane
-        text_x = self._lane_x(max(self._max_lanes, 2)) + GRAPH_NODE_SIZE
+        # Text starts after the rightmost lane node
+        text_x = self._lane_x(max(self._max_lanes, 1)) + GRAPH_NODE_SIZE + 10
 
         # Draw commit message
         painter.setPen(QColor(TEXT_DARK))
