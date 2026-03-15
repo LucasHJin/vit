@@ -312,6 +312,30 @@ def handle_request(request, resolve_app, project_dir):
                 fallback = categorize_commit(files_changed)
                 return {"ok": True, "hash": commit_hash, "category": fallback}
 
+        elif action == "get_commit_graph":
+            from giteo.core import git_log_with_topology
+            limit = request.get("limit", 30)
+            try:
+                data = git_log_with_topology(project_dir, max_count=limit)
+                # Assign color indices to branches dynamically
+                branch_colors = {}
+                color_idx = 0
+                for branch in data.get("branches", []):
+                    if branch in ("main", "master"):
+                        branch_colors[branch] = 3  # orange
+                    else:
+                        branch_colors[branch] = color_idx % 3  # rotate R(0), G(1), B(2)
+                        color_idx += 1
+                return {
+                    "ok": True,
+                    "commits": data.get("commits", []),
+                    "branches": data.get("branches", []),
+                    "branch_colors": branch_colors,
+                    "head": data.get("head", ""),
+                }
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+
         elif action == "quit":
             return {"ok": True, "quit": True}
 

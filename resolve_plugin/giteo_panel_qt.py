@@ -8,9 +8,11 @@ Usage: python giteo_panel_qt.py --project-dir /path/to/project --port 12345
 """
 import argparse
 import json
+import os
 import socket
 import sys
 import threading
+import traceback
 
 from PySide6.QtCore import (
     Qt, Signal, QPropertyAnimation, QRect, QEasingCurve, QTimer, QSize, QByteArray
@@ -47,6 +49,12 @@ TEXT_BRIGHT = "#FFFFFF"
 
 SUCCESS = "#4EC9B0"
 ERROR = "#F44747"
+
+# -- Logging ------------------------------------------------------------------
+
+def _log(msg):
+    """Print log message with prefix."""
+    print(f"[vit] {msg}")
 
 # -- SVG Icons ----------------------------------------------------------------
 
@@ -817,133 +825,337 @@ class MergeFeedbackSection(QWidget):
 
 # -- Commit Graph Section Widget ----------------------------------------------
 
-class CommitNode(QWidget):
-    """A single commit node in the graph."""
+# Single color for the entire graph (peachy orange)
+GRAPH_COLOR = "#FFBA6B"
+GRAPH_COLOR_LIGHT = "#FFBA6B40"  # 25% opacity for branch lines
 
-    def __init__(self, commit: dict, parent=None):
-        super().__init__(parent)
-        self.commit = commit
-
-        layout = QHBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(0, 4, 0, 4)
-
-        # Timeline line and node
-        node_widget = QWidget()
-        node_widget.setFixedWidth(32)
-        node_layout = QVBoxLayout(node_widget)
-        node_layout.setSpacing(0)
-        node_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Node circle with category icon
-        category = commit.get("category", "video")
-        node_label = QLabel()
-        node_label.setFixedSize(24, 24)
-        node_label.setAlignment(Qt.AlignCenter)
-        
-        if category == "audio":
-            node_label.setPixmap(svg_to_pixmap(SVG_AUDIO, ORANGE_DARK, 16))
-        elif category == "video":
-            node_label.setPixmap(svg_to_pixmap(SVG_VIDEO, ORANGE_DARK, 16))
-        elif category == "color":
-            node_label.setPixmap(svg_to_pixmap(SVG_COLOR, ORANGE_DARK, 16))
-        
-        node_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {ORANGE_LIGHT};
-                border: 2px solid {ORANGE_DARK};
-                border-radius: 12px;
-            }}
-        """)
-        node_layout.addWidget(node_label, alignment=Qt.AlignHCenter)
-
-        layout.addWidget(node_widget)
-
-        # Commit info
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
-
-        # Branch tag
-        branch = commit.get("branch", "main")
-        branch_label = QLabel(branch)
-        branch_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {ORANGE};
-                color: {TEXT_BLACK};
-                border-radius: 10px;
-                padding: 2px 12px;
-                font-size: 11px;
-                font-weight: 600;
-            }}
-        """)
-        branch_label.setFixedWidth(branch_label.sizeHint().width() + 16)
-        info_layout.addWidget(branch_label)
-
-        # Commit message
-        message = commit.get("message", "No message")
-        msg_label = QLabel(message)
-        msg_label.setStyleSheet(f"color: {TEXT_PRIMARY}; font-size: 12px;")
-        msg_label.setWordWrap(True)
-        info_layout.addWidget(msg_label)
-
-        layout.addLayout(info_layout, stretch=1)
+# Graph layout constants
+GRAPH_ROW_HEIGHT = 42
+GRAPH_MAIN_X = 10
+GRAPH_BRANCH_X = 40  # X position for branch commits (offset from main)
+GRAPH_NODE_SIZE = 10
 
 
-class CommitGraphSection(QWidget):
-    """The GRAPH section with vertical commit timeline."""
+def _load_graph_assets():
+    """Load SVG assets for the graph. Returns dict of QSvgRenderer objects."""
+    assets_dir = os.path.join(os.path.dirname(__file__), "graph_assets")
+    assets = {}
+    
+    # Orange node (filled) - 4.svg
+    path = os.path.join(assets_dir, "4.svg")
+    if os.path.exists(path):
+        assets["node"] = QSvgRenderer(path)
+    
+    # Orange ring (HEAD) - 5.svg
+    path = os.path.join(assets_dir, "5.svg")
+    if os.path.exists(path):
+        assets["ring"] = QSvgRenderer(path)
+    
+    return assets
+
+
+_GRAPH_ASSETS = None
+
+
+def _get_graph_assets():
+    """Get cached graph assets, loading if needed."""
+    global _GRAPH_ASSETS
+    if _GRAPH_ASSETS is None:
+        _GRAPH_ASSETS = _load_graph_assets()
+    return _GRAPH_ASSETS
+
+
+class CommitGraphWidget(QWidget):
+    """Custom widget that draws the git commit graph with a single orange color."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._commits = []
+        self._is_main_commit = []  # True if commit is on main branch (for X position)
+        self._commit_rows = []  # Row (Y) position for each commit
+        self._head = ""
+        self.setMinimumHeight(350)
+
+    def set_data(self, commits: list, branch_colors: dict = None, head: str = ""):
+        """Set the graph data."""
+        self._commits = commits
+        self._head = head
+        
+        # Determine visual lane based on branch NAME (not reachability)
+        # This preserves branch history even after merge
+        self._is_main_commit = []
+        for commit in self._commits:
+            branch = commit.get("branch", "main")
+            # Visual positioning: main commits on left, branch commits on right
+            is_main = branch in ("main", "master")
+            self._is_main_commit.append(is_main)
+        
+        # Calculate row positions (parallel commits share same row)
+        self._commit_rows = self._calculate_row_positions()
+        
+        # Calculate required height
+        num_rows = max(self._commit_rows) + 1 if self._commit_rows else 1
+        height = max(350, num_rows * GRAPH_ROW_HEIGHT + 40)
+        self.setMinimumHeight(height)
+        self.setFixedHeight(height)
+        self.update()
+    
+    def _calculate_row_positions(self) -> list:
+        """Calculate row (Y) positions for commits.
+        
+        Each commit gets its own row. No overlapping.
+        Commits are ordered by index (newest first = top).
+        """
+        if not self._commits:
+            return []
+        
+        # Simple: each commit gets its own row based on index
+        return list(range(len(self._commits)))
+
+    def _get_commit_y(self, index: int) -> int:
+        """Get Y position for a commit by its row."""
+        if hasattr(self, '_commit_rows') and self._commit_rows and index < len(self._commit_rows):
+            row = self._commit_rows[index]
+        else:
+            row = index
+        return 20 + row * GRAPH_ROW_HEIGHT
+
+    def paintEvent(self, event):
+        """Draw the graph."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        if not self._commits:
+            painter.setPen(QColor(TEXT_DARK))
+            painter.drawText(20, 30, "No commits yet")
+            painter.end()
+            return
+
+        assets = _get_graph_assets()
+        
+        # First: draw main vertical line (connects main branch commits)
+        self._draw_main_line(painter)
+        
+        # Second: draw branch curves connecting main to branch commits
+        self._draw_branch_curves(painter)
+        
+        # Third: draw nodes and labels
+        for i, commit in enumerate(self._commits):
+            self._draw_commit(painter, i, commit, assets)
+        
+        painter.end()
+
+    def _get_commit_x(self, index: int) -> int:
+        """Get X position for a commit. Main commits on left, branch commits offset right."""
+        if self._is_main_commit[index]:
+            return GRAPH_MAIN_X
+        else:
+            return GRAPH_BRANCH_X  # Branch commits offset to the right
+
+    def _draw_main_line(self, painter):
+        """Draw the main vertical line connecting main branch commits."""
+        # Find main branch commits
+        main_indices = [i for i, is_main in enumerate(self._is_main_commit) if is_main]
+        
+        if len(main_indices) < 2:
+            # If less than 2 main commits, draw line through all commits
+            if len(self._commits) >= 2:
+                pen = QPen(QColor(GRAPH_COLOR))
+                pen.setWidth(2)
+                painter.setPen(pen)
+                y1 = self._get_commit_y(0)
+                y2 = self._get_commit_y(len(self._commits) - 1)
+                painter.drawLine(GRAPH_MAIN_X, y1, GRAPH_MAIN_X, y2)
+            return
+        
+        pen = QPen(QColor(GRAPH_COLOR))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        
+        # Draw line from first to last main commit
+        y1 = self._get_commit_y(main_indices[0])
+        y2 = self._get_commit_y(main_indices[-1])
+        painter.drawLine(GRAPH_MAIN_X, y1, GRAPH_MAIN_X, y2)
+
+    def _draw_branch_curves(self, painter):
+        """Draw smooth branch forks and merges.
+        
+        Fork: smooth curve from parent node to branch node
+        Merge: vertical line up from branch, smooth curve into merge node
+        """
+        color = QColor(GRAPH_COLOR)
+        color.setAlphaF(0.5)
+        
+        pen = QPen(color)
+        pen.setWidth(1)
+        pen.setDashPattern([3, 3])
+        painter.setPen(pen)
+        
+        branch_x = GRAPH_BRANCH_X
+        
+        # Build hash -> index lookup
+        hash_to_idx = {c.get("hash"): i for i, c in enumerate(self._commits)}
+        
+        # Track branch commits and their fork/merge points
+        branch_indices = [i for i, is_main in enumerate(self._is_main_commit) if not is_main]
+        
+        for branch_idx in branch_indices:
+            branch_commit = self._commits[branch_idx]
+            branch_y = self._get_commit_y(branch_idx)
+            
+            # Find fork point (parent of branch commit)
+            parents = branch_commit.get("parents", [])
+            fork_parent_idx = None
+            if parents:
+                parent_idx = hash_to_idx.get(parents[0])
+                if parent_idx is not None and self._is_main_commit[parent_idx]:
+                    fork_parent_idx = parent_idx
+                    parent_y = self._get_commit_y(parent_idx)
+                    
+                    # Draw fork: vertical line down from branch, then S-curve to main
+                    # (Mirror of the merge curve)
+                    
+                    # Vertical line from branch node down toward fork point
+                    curve_start_y = branch_y + (parent_y - branch_y) * 0.3
+                    painter.drawLine(branch_x, branch_y, branch_x, int(curve_start_y))
+                    
+                    # Smooth S-curve from vertical line to parent NODE
+                    path = QPainterPath()
+                    path.moveTo(branch_x, curve_start_y)
+                    path.cubicTo(
+                        branch_x, parent_y,        # First control (vertical toward parent)
+                        (GRAPH_MAIN_X + branch_x) / 2, parent_y,  # Second control (horizontal)
+                        GRAPH_MAIN_X, parent_y     # End point (parent node)
+                    )
+                    painter.drawPath(path)
+            
+            # Find merge point (commit that has this as a parent)
+            for i, commit in enumerate(self._commits):
+                commit_parents = commit.get("parents", [])
+                if len(commit_parents) >= 2 and branch_commit.get("hash") in commit_parents:
+                    if self._is_main_commit[i]:
+                        merge_y = self._get_commit_y(i)
+                        
+                        # Draw vertical line from branch node up toward merge
+                        # Stop where the curve will begin
+                        curve_start_y = merge_y + (branch_y - merge_y) * 0.3
+                        painter.drawLine(branch_x, branch_y, branch_x, int(curve_start_y))
+                        
+                        # Draw smooth curve from vertical line into merge NODE
+                        path = QPainterPath()
+                        path.moveTo(branch_x, curve_start_y)
+                        ctrl_x = (GRAPH_MAIN_X + branch_x) / 2
+                        path.cubicTo(
+                            branch_x, merge_y,     # First control (vertical toward merge)
+                            ctrl_x, merge_y,       # Second control (horizontal to merge)
+                            GRAPH_MAIN_X, merge_y  # End point (merge node)
+                        )
+                        painter.drawPath(path)
+
+    def _draw_commit(self, painter, index: int, commit: dict, assets: dict):
+        """Draw a single commit node and its label."""
+        branch = commit.get("branch", "main")
+        is_head = commit.get("is_head", False) or commit.get("hash") == self._head
+        message = commit.get("message", "")
+
+        # Strip "giteo: " prefix if present
+        if message.startswith("giteo: "):
+            message = message[7:]
+
+        # Position: main commits on left, branch commits offset right
+        x = self._get_commit_x(index)
+        y = self._get_commit_y(index)
+
+        # Draw node using SVG asset
+        # HEAD commit: ring (outline), All others: filled
+        node_rect = QRect(
+            x - GRAPH_NODE_SIZE // 2,
+            y - GRAPH_NODE_SIZE // 2,
+            GRAPH_NODE_SIZE,
+            GRAPH_NODE_SIZE
+        )
+
+        asset_key = "ring" if is_head else "node"
+        if asset_key in assets:
+            assets[asset_key].render(painter, node_rect)
+        else:
+            # Fallback: draw circle with QPainter
+            color = QColor(GRAPH_COLOR)
+            if is_head:
+                painter.setPen(QPen(color, 2))
+                painter.setBrush(Qt.NoBrush)
+            else:
+                color.setAlphaF(0.86)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(color))
+            painter.drawEllipse(node_rect)
+
+        # Text always starts after the branch line (rightmost position)
+        # This ensures text never overlaps with branch lines
+        text_x = GRAPH_BRANCH_X + GRAPH_NODE_SIZE + 12
+        
+        # Draw full commit message (no truncation)
+        painter.setPen(QColor(TEXT_DARK))  # Grey color for message
+        painter.setFont(QFont("SF Pro Display", 11))
+        painter.drawText(text_x, y + 4, message)
+        
+        # Only draw branch pill for HEAD commit
+        if is_head:
+            # Calculate message width to position pill after it
+            msg_width = len(message) * 6 + 12
+            pill_x = text_x + msg_width
+            pill_y = y - 9
+            self._draw_branch_pill(painter, branch, pill_x, pill_y)
+
+    def _draw_branch_pill(self, painter, branch: str, x: int, y: int):
+        """Draw a branch label pill (all same orange color)."""
+        color = QColor(GRAPH_COLOR)
+        
+        # Calculate pill size
+        font = QFont("SF Pro Display", 10, QFont.DemiBold)
+        painter.setFont(font)
+        text_width = len(branch) * 7 + 16
+        pill_height = 18
+        
+        # Draw pill background
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(color))
+        painter.drawRoundedRect(x, y, text_width, pill_height, 9, 9)
+        
+        # Draw text
+        painter.setPen(QColor(TEXT_BLACK))
+        painter.drawText(x + 8, y + 13, branch)
+
+
+class CommitGraphSection(QWidget):
+    """The GRAPH section with visual commit timeline."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._commits = []
+        self._head = ""
 
         layout = QVBoxLayout(self)
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Scroll area for commits
+        # Scroll area for the graph
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setMinimumHeight(350)
 
-        self._commits_container = QWidget()
-        self._commits_layout = QVBoxLayout(self._commits_container)
-        self._commits_layout.setSpacing(0)
-        self._commits_layout.setContentsMargins(8, 0, 8, 0)
-        self._commits_layout.addStretch()
-
-        scroll.setWidget(self._commits_container)
+        self._graph_widget = CommitGraphWidget()
+        scroll.setWidget(self._graph_widget)
         layout.addWidget(scroll)
 
-    def set_commits(self, commits: list):
+    def set_commits(self, commits: list, branch_colors: dict = None, head: str = ""):
         """Update the displayed commits."""
         self._commits = commits
-
-        # Clear existing items (except stretch)
-        while self._commits_layout.count() > 1:
-            child = self._commits_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        # Add new commit nodes
-        for i, commit in enumerate(commits):
-            node = CommitNode(commit)
-            self._commits_layout.insertWidget(i, node)
-
-            # Add connecting line if not last
-            if i < len(commits) - 1:
-                line = QFrame()
-                line.setFixedWidth(2)
-                line.setFixedHeight(20)
-                line.setStyleSheet(f"background-color: {ORANGE_DARK};")
-                
-                line_container = QWidget()
-                line_layout = QHBoxLayout(line_container)
-                line_layout.setContentsMargins(15, 0, 0, 0)
-                line_layout.addWidget(line)
-                line_layout.addStretch()
-                
-                self._commits_layout.insertWidget(i * 2 + 1, line_container)
+        self._head = head
+        self._graph_widget.set_data(commits, None, head)
 
 
 # -- Main Window --------------------------------------------------------------
@@ -1193,17 +1405,29 @@ class GiteoPanel(QMainWindow):
             self._changes_widget.set_changes({})
 
     def refresh_commits(self):
-        self._run_async({"action": "get_commit_history", "limit": 10}, self._on_commits_result)
+        _log("Refreshing commit graph...")
+        self._run_async({"action": "get_commit_graph", "limit": 20}, self._on_commits_result)
 
     def _on_commits_result(self, result):
-        if result.get("ok"):
-            commits = result.get("commits", [])
-            self._graph_widget.set_commits(commits)
-        elif "Unknown action" in result.get("error", ""):
-            # Show placeholder commits for now
-            self._graph_widget.set_commits([
-                {"message": "Initial commit", "branch": "main", "category": "video"},
-            ])
+        try:
+            if result.get("ok"):
+                commits = result.get("commits", [])
+                branch_colors = result.get("branch_colors", {})
+                head = result.get("head", "")
+                self._graph_widget.set_commits(commits, branch_colors, head)
+            else:
+                error = result.get("error", "")
+                _log(f"get_commit_graph error: {error}")
+                # Fallback to old action or show placeholder
+                if "Unknown action" in error:
+                    self._graph_widget.set_commits([
+                        {"message": "Initial commit", "branch": "main", "is_head": True},
+                    ])
+                else:
+                    self._graph_widget.set_commits([])
+        except Exception as e:
+            _log(f"_on_commits_result error: {e}")
+            self._graph_widget.set_commits([])
 
     def on_save(self, message: str):
         """Handle commit request from Changes section."""

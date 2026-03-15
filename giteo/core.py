@@ -338,3 +338,119 @@ def categorize_commit(files_changed: List[str]) -> str:
     if counts[max_cat] == 0:
         return "video"
     return max_cat
+
+
+def git_log_with_topology(project_dir: str, max_count: int = 30) -> dict:
+    """Get commit log with parent information for graph visualization.
+
+    Returns dict with:
+        - commits: list of commit dicts with:
+            - hash, parents, message, branch, is_head
+            - is_main_commit: True if commit is reachable from main (for visual positioning)
+        - branches: list of branch names encountered
+        - head: hash of current HEAD commit
+    """
+    # Get HEAD hash
+    head_result = _run(["rev-parse", "HEAD"], cwd=project_dir, check=False)
+    head_hash = head_result.stdout.strip()[:7] if head_result.returncode == 0 else ""
+
+    # Get current branch
+    current_result = _run(["rev-parse", "--abbrev-ref", "HEAD"], cwd=project_dir, check=False)
+    current_branch = current_result.stdout.strip() if current_result.returncode == 0 else "main"
+
+    # Determine the main branch name (main or master)
+    main_branch = "main"
+    for candidate in ["main", "master"]:
+        check = _run(["rev-parse", "--verify", candidate], cwd=project_dir, check=False)
+        if check.returncode == 0:
+            main_branch = candidate
+            break
+
+    # Get commits reachable from main branch (for visual positioning)
+    main_commits = set()
+    main_log = _run(
+        ["log", main_branch, f"--max-count={max_count}", "--pretty=format:%H"],
+        cwd=project_dir,
+        check=False,
+    )
+    if main_log.returncode == 0:
+        for line in main_log.stdout.strip().split("\n"):
+            if line.strip():
+                main_commits.add(line.strip()[:7])
+
+    # Get commits with parent hashes
+    result = _run(
+        [
+            "log",
+            "--all",
+            f"--max-count={max_count}",
+            "--pretty=format:%H|%P|%s|%D",
+            "--date-order",
+        ],
+        cwd=project_dir,
+        check=False,
+    )
+    if result.returncode != 0:
+        return {"commits": [], "branches": [], "head": ""}
+
+    commits = []
+    branch_set = set()
+
+    for line in result.stdout.strip().split("\n"):
+        if not line.strip():
+            continue
+        parts = line.split("|", 3)
+        if len(parts) < 3:
+            continue
+
+        hash_full = parts[0]
+        hash_short = hash_full[:7]
+        parents_str = parts[1]
+        message = parts[2]
+        refs = parts[3] if len(parts) > 3 else ""
+
+        # Parse parents
+        parents = [p[:7] for p in parents_str.split() if p]
+
+        # Check if this commit is reachable from main (for visual positioning)
+        is_main_commit = hash_short in main_commits
+
+        # Extract branch name from refs (for labeling)
+        branch = None
+        is_head = False
+        if refs:
+            for ref in refs.split(","):
+                ref = ref.strip()
+                if ref.startswith("HEAD -> "):
+                    branch = ref.replace("HEAD -> ", "")
+                    is_head = True
+                    break
+                elif ref == "HEAD":
+                    is_head = True
+                elif "/" not in ref and ref not in ("HEAD", ""):
+                    if branch is None:
+                        branch = ref
+
+        # If no branch found from refs, use context
+        if branch is None:
+            if is_main_commit:
+                branch = main_branch
+            else:
+                branch = current_branch
+
+        branch_set.add(branch)
+
+        commits.append({
+            "hash": hash_short,
+            "parents": parents,
+            "message": message,
+            "branch": branch,
+            "is_head": is_head or hash_short == head_hash,
+            "is_main_commit": is_main_commit,  # For visual positioning
+        })
+
+    return {
+        "commits": commits,
+        "branches": list(branch_set),
+        "head": head_hash,
+    }
