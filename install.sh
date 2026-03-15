@@ -8,7 +8,7 @@ set -euo pipefail
 
 VIT_HOME="$HOME/.vit"
 VIT_SRC="$VIT_HOME/vit-src"
-REPO_URL="https://github.com/LucasHJin/giteo.git"
+REPO_URL="https://github.com/LucasHJin/vit.git"
 
 echo ""
 echo "  Vit — Git for Video Editing"

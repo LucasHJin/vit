@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $VIT_HOME = "$env:USERPROFILE\.vit"
 $VIT_SRC = "$VIT_HOME\vit-src"
-$REPO_URL = "https://github.com/LucasHJin/giteo.git"
+$REPO_URL = "https://github.com/LucasHJin/vit.git"
 
 Write-Host ""
 Write-Host "  Vit — Git for Video Editing"
