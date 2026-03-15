@@ -241,7 +241,13 @@ def handle_request(request, resolve_app, project_dir):
 
         elif action == "get_changes":
             from giteo.differ import get_changes_by_category
+            from giteo.serializer import serialize_timeline
             try:
+                # Re-serialize current timeline state before diffing
+                project = resolve_app.GetProjectManager().GetCurrentProject()
+                timeline = project.GetCurrentTimeline()
+                if timeline:
+                    serialize_timeline(timeline, project, project_dir, resolve_app=resolve_app)
                 changes = get_changes_by_category(project_dir, "HEAD")
                 return {"ok": True, "changes": changes}
             except Exception as e:

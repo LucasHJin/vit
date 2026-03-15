@@ -18,14 +18,14 @@ from PySide6.QtCore import (
     Qt, Signal, QPropertyAnimation, QRect, QEasingCurve, QTimer, QSize, QByteArray, QRectF
 )
 from PySide6.QtGui import (
-    QFont, QColor, QPalette, QIcon, QGuiApplication, QPainter,
+    QFont, QFontMetrics, QColor, QPalette, QIcon, QGuiApplication, QPainter,
     QPixmap, QPen, QBrush, QPainterPath
 )
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QLineEdit, QDialog, QDialogButtonBox,
     QListWidget, QListWidgetItem, QFrame, QSizePolicy, QSpacerItem,
-    QScrollArea, QComboBox, QGridLayout,
+    QScrollArea, QComboBox, QGridLayout, QListView,
 )
 from PySide6.QtSvg import QSvgRenderer
 
@@ -58,28 +58,6 @@ def _log(msg):
 
 # -- SVG Icons ----------------------------------------------------------------
 
-SVG_LOGO = """<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-  <circle cx="12" cy="12" r="10" stroke="{color}" stroke-width="2" fill="none"/>
-  <circle cx="8" cy="8" r="1.5" fill="{color}"/>
-  <circle cx="16" cy="8" r="1.5" fill="{color}" fill-opacity="0.5"/>
-  <circle cx="8" cy="16" r="1.5" fill="{color}" fill-opacity="0.7"/>
-  <circle cx="16" cy="16" r="1.5" fill="{color}" fill-opacity="0.3"/>
-  <circle cx="12" cy="12" r="1.5" fill="{color}"/>
-</svg>"""
-
-# Group 13.svg — header logo (dot pattern)
-SVG_GROUP_13 = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M4.65215 1.32895C4.98041 1.89254 4.78561 2.61319 4.21705 2.93858C3.64849 3.26397 2.92148 3.07087 2.59322 2.50728C2.26496 1.94369 2.45976 1.22304 3.02832 0.897651C3.59688 0.572264 4.3239 0.765363 4.65215 1.32895Z" fill="{color}"/>
-<path d="M9.4072 9.49295C9.73546 10.0565 9.54066 10.7772 8.9721 11.1026C8.40354 11.428 7.67653 11.2349 7.34827 10.6713C7.02001 10.1077 7.21481 9.38704 7.78337 9.06165C8.35193 8.73627 9.07895 8.92936 9.4072 9.49295Z" fill="{color}" fill-opacity="0.5"/>
-<path d="M1.28778 7.33627C1.85635 7.01091 2.58336 7.20403 2.91159 7.76763C3.23983 8.33123 3.04499 9.05188 2.47642 9.37725C1.90785 9.70261 1.18084 9.50948 0.852609 8.94588C0.524374 8.38228 0.719207 7.66163 1.28778 7.33627Z" fill="{color}" fill-opacity="0.7"/>
-<path d="M9.524 2.62307C10.0926 2.29771 10.8196 2.49084 11.1478 3.05444C11.476 3.61804 11.2812 4.33869 10.7126 4.66405C10.1441 4.98941 9.41706 4.79629 9.08883 4.23269C8.7606 3.66909 8.95543 2.94844 9.524 2.62307Z" fill="{color}" fill-opacity="0.3"/>
-<path d="M7.52281 0.304981C8.15696 0.473414 8.53329 1.11954 8.36337 1.74814C8.19345 2.37674 7.54163 2.74977 6.90748 2.58134C6.27334 2.41291 5.89701 1.76679 6.06693 1.13819C6.23685 0.509588 6.88867 0.136549 7.52281 0.304981Z" fill="{color}" fill-opacity="0.2"/>
-<path d="M5.09293 9.41893C5.72707 9.58737 6.1034 10.2335 5.93348 10.8621C5.76356 11.4907 5.11174 11.8637 4.4776 11.6953C3.84345 11.5269 3.46712 10.8807 3.63704 10.2521C3.80696 9.62354 4.45878 9.2505 5.09293 9.41893Z" fill="{color}" fill-opacity="0.6"/>
-<path d="M1.76355 3.47423C2.3977 3.64266 2.77403 4.28879 2.60411 4.91739C2.43419 5.54599 1.78237 5.91902 1.14822 5.75059C0.514076 5.58216 0.137746 4.93604 0.307665 4.30744C0.477584 3.67884 1.12941 3.3058 1.76355 3.47423Z" fill="{color}" fill-opacity="0.8"/>
-<path d="M10.8521 6.24974C11.4862 6.41818 11.8625 7.0643 11.6926 7.6929C11.5227 8.3215 10.8709 8.69454 10.2367 8.5261C9.60258 8.35767 9.22625 7.71155 9.39617 7.08295C9.56608 6.45435 10.2179 6.08131 10.8521 6.24974Z" fill="{color}" fill-opacity="0.4"/>
-<path d="M8.55872 4.46151C9.37015 5.85465 8.88861 7.63605 7.48318 8.44038C6.07775 9.24471 4.28064 8.76738 3.46921 7.37425C2.65779 5.98111 3.13932 4.19971 4.54475 3.39538C5.95018 2.59105 7.7473 3.06838 8.55872 4.46151Z" fill="{color}"/>
-</svg>"""
-
 SVG_AUDIO = """<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
   <path d="M3 5h2l3-3v12l-3-3H3a1 1 0 01-1-1V6a1 1 0 011-1z" fill="{color}"/>
   <path d="M11 4.5c1.5 1 2 2.5 2 3.5s-.5 2.5-2 3.5" stroke="{color}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
@@ -97,38 +75,10 @@ SVG_COLOR = """<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
   <circle cx="8" cy="8" r="2" fill="{color}"/>
 </svg>"""
 
-SVG_CHEVRON_DOWN = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-  <path d="M3 4.5L6 7.5L9 4.5" stroke="{color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>"""
-
-SVG_CHEVRON_RIGHT = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-  <path d="M4.5 3L7.5 6L4.5 9" stroke="{color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>"""
-
 SVG_CHEVRON_LEFT = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
   <path d="M7.5 3L4.5 6L7.5 9" stroke="{color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>"""
 
-SVG_CLOSE = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-  <path d="M2 2L10 10M10 2L2 10" stroke="{color}" stroke-width="2" stroke-linecap="round"/>
-</svg>"""
-
-SVG_SPARKLE = """<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-  <path d="M8 1l1.5 4.5L14 7l-4.5 1.5L8 13l-1.5-4.5L2 7l4.5-1.5L8 1z" fill="{color}"/>
-</svg>"""
-
-# Group 2.svg: commit message AI selector (white dots, various opacities)
-SVG_COMMIT_SELECTOR = """<svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-  <path d="M4.65214 1.32895C4.98039 1.89254 4.78559 2.61319 4.21703 2.93858C3.64847 3.26397 2.92146 3.07087 2.5932 2.50728C2.26495 1.94369 2.45975 1.22304 3.02831 0.897651C3.59687 0.572264 4.32388 0.765363 4.65214 1.32895Z" fill="{color}"/>
-  <path d="M9.4072 9.49292C9.73546 10.0565 9.54066 10.7772 8.9721 11.1026C8.40354 11.4279 7.67653 11.2348 7.34827 10.6713C7.02001 10.1077 7.21481 9.38701 7.78337 9.06162C8.35193 8.73624 9.07895 8.92933 9.4072 9.49292Z" fill="{color}" fill-opacity="0.5"/>
-  <path d="M1.28781 7.33624C1.85638 7.01088 2.58339 7.204 2.91162 7.7676C3.23986 8.3312 3.04502 9.05185 2.47645 9.37722C1.90788 9.70258 1.18087 9.50945 0.852639 8.94585C0.524405 8.38225 0.719237 7.6616 1.28781 7.33624Z" fill="{color}" fill-opacity="0.7"/>
-  <path d="M9.52402 2.62307C10.0926 2.29771 10.8196 2.49084 11.1478 3.05444C11.4761 3.61804 11.2812 4.33869 10.7127 4.66405C10.1441 4.98941 9.41708 4.79629 9.08885 4.23269C8.76061 3.66909 8.95544 2.94844 9.52402 2.62307Z" fill="{color}" fill-opacity="0.3"/>
-  <path d="M7.52283 0.304981C8.15697 0.473414 8.5333 1.11954 8.36338 1.74814C8.19347 2.37674 7.54164 2.74977 6.9075 2.58134C6.27335 2.41291 5.89702 1.76679 6.06694 1.13819C6.23686 0.509588 6.88868 0.136549 7.52283 0.304981Z" fill="{color}" fill-opacity="0.2"/>
-  <path d="M5.0929 9.41896C5.72704 9.5874 6.10337 10.2335 5.93345 10.8621C5.76353 11.4907 5.11171 11.8638 4.47757 11.6953C3.84342 11.5269 3.46709 10.8808 3.63701 10.2522C3.80693 9.62357 4.45875 9.25053 5.0929 9.41896Z" fill="{color}" fill-opacity="0.6"/>
-  <path d="M1.76355 3.47423C2.3977 3.64266 2.77403 4.28879 2.60411 4.91739C2.43419 5.54599 1.78237 5.91902 1.14822 5.75059C0.514076 5.58216 0.137746 4.93604 0.307665 4.30744C0.477584 3.67884 1.12941 3.3058 1.76355 3.47423Z" fill="{color}" fill-opacity="0.8"/>
-  <path d="M10.8521 6.24971C11.4862 6.41815 11.8625 7.06427 11.6926 7.69287C11.5227 8.32147 10.8709 8.69451 10.2367 8.52607C9.60258 8.35764 9.22625 7.71152 9.39617 7.08292C9.56608 6.45432 10.2179 6.08128 10.8521 6.24971Z" fill="{color}" fill-opacity="0.4"/>
-  <path d="M7.21342 5.34055C7.54167 5.90413 7.34687 6.62479 6.77831 6.95018C6.20975 7.27556 5.48274 7.08246 5.15448 6.51888C4.82622 5.95529 5.02103 5.23463 5.58959 4.90925C6.15815 4.58386 6.88516 4.77696 7.21342 5.34055Z" fill="{color}"/>
-</svg>"""
 
 # -- Stylesheet ---------------------------------------------------------------
 
@@ -247,7 +197,15 @@ QComboBox QAbstractItemView {{
     color: {TEXT_PRIMARY};
     border: 1px solid {BORDER};
     selection-background-color: {ORANGE};
-    selection-color: {TEXT_BLACK};
+    selection-color: {TEXT_BRIGHT};
+}}
+QComboBox QAbstractItemView::item {{
+    color: {TEXT_PRIMARY};
+    padding: 6px 8px;
+}}
+QComboBox QAbstractItemView::item:selected {{
+    background-color: {ORANGE};
+    color: {TEXT_BRIGHT};
 }}
 QScrollArea {{
     background-color: transparent;
@@ -619,7 +577,21 @@ class ActionsSection(QWidget):
                 border-left: 1px solid rgba(0,0,0,0.2);
                 width: 20px;
             }}
+            QComboBox QAbstractItemView {{
+                background-color: {BG_PANEL};
+                color: {TEXT_PRIMARY};
+                selection-background-color: {ORANGE};
+                selection-color: {TEXT_BRIGHT};
+            }}
+            QComboBox QAbstractItemView::item {{
+                color: {TEXT_PRIMARY};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {ORANGE};
+                color: {TEXT_BRIGHT};
+            }}
         """)
+        self._switch_combo.setView(QListView())
         switch_row.addWidget(self._switch_combo, stretch=1)
         self._switch_btn = QPushButton("Switch")
         self._switch_btn.setFixedHeight(_action_height)
@@ -653,7 +625,21 @@ class ActionsSection(QWidget):
                 border-left: 1px solid rgba(0,0,0,0.2);
                 width: 20px;
             }}
+            QComboBox QAbstractItemView {{
+                background-color: {BG_PANEL};
+                color: {TEXT_PRIMARY};
+                selection-background-color: {ORANGE};
+                selection-color: {TEXT_BRIGHT};
+            }}
+            QComboBox QAbstractItemView::item {{
+                color: {TEXT_PRIMARY};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {ORANGE};
+                color: {TEXT_BRIGHT};
+            }}
         """)
+        self._merge_combo.setView(QListView())
         merge_row.addWidget(self._merge_combo, stretch=1)
         self._merge_btn = QPushButton("Merge")
         self._merge_btn.setFixedHeight(_action_height)
@@ -693,16 +679,20 @@ class ActionsSection(QWidget):
 
     def _on_merge_click(self):
         target = self._merge_combo.currentText()
-        if target:
+        if target and target != "None":
             self.merge_branch_requested.emit(target)
 
     def set_branches(self, branches: list, current: str):
         """Populate switch/merge combos. Call after list_branches."""
         self._switch_combo.clear()
         self._switch_combo.addItems(branches or [])
+        if "main" in (branches or []):
+            self._switch_combo.setCurrentText("main")
         self._merge_combo.clear()
+        self._merge_combo.addItem("None")
         merge_targets = [b for b in (branches or []) if b != current]
         self._merge_combo.addItems(merge_targets)
+        self._merge_combo.setCurrentIndex(0)
 
 
 # -- Change Item Widget -------------------------------------------------------
@@ -716,19 +706,22 @@ class ChangeItemWidget(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
-        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setContentsMargins(0, 2, 0, 2)
 
-        # Icon (mockup Group 14: video film strip, audio waveform, color circle)
+        # Icon: Unicode symbols for each category
         icon_label = QLabel()
-        icon_color = ORANGE_DARK
         if category == "audio":
-            icon_label.setPixmap(svg_to_pixmap(SVG_AUDIO, icon_color, 16))
+            icon_label.setText("♪")
         elif category == "video":
-            icon_label.setPixmap(svg_to_pixmap(SVG_VIDEO, icon_color, 16))
+            icon_label.setText("▶")
         elif category == "color":
-            icon_label.setPixmap(svg_to_pixmap(SVG_COLOR, icon_color, 16))
-        icon_label.setFixedSize(16, 16)
+            icon_label.setText("◉")
+        icon_label.setFixedSize(18, 18)
         icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setStyleSheet(f"""
+            color: {ORANGE};
+            font-size: 14px;
+        """)
         layout.addWidget(icon_label)
 
         # Name (mockup: #4A4A4A muted text)
@@ -748,6 +741,7 @@ class ChangesSection(QWidget):
     """The CHANGES section with commit input and file list (mockup-aligned)."""
 
     commit_requested = Signal(str)
+    refresh_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -793,11 +787,14 @@ class ChangesSection(QWidget):
 
         layout.addWidget(input_frame)
 
-        # Commit button: full-width orange (#FFB463), 5px radius
+        # Commit + Refresh row: half and half
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
         self._commit_btn = QPushButton("Commit")
         self._commit_btn.setObjectName("primaryBtn")
         self._commit_btn.clicked.connect(self._on_commit)
-        self._commit_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._commit_btn.setFixedHeight(40)
         self._commit_btn.setStyleSheet(f"""
             QPushButton#primaryBtn {{
                 background-color: {ORANGE};
@@ -815,7 +812,31 @@ class ChangesSection(QWidget):
                 background-color: {ORANGE_PRESSED};
             }}
         """)
-        layout.addWidget(self._commit_btn)
+        btn_row.addWidget(self._commit_btn, stretch=1)
+
+        self._refresh_btn = QPushButton("Refresh")
+        self._refresh_btn.setCursor(Qt.PointingHandCursor)
+        self._refresh_btn.clicked.connect(self.refresh_requested.emit)
+        self._refresh_btn.setFixedHeight(40)
+        self._refresh_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BG_PANEL};
+                color: {TEXT_PRIMARY};
+                border: 1px solid {BORDER};
+                border-radius: 5px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                border-color: {ORANGE};
+            }}
+            QPushButton:pressed {{
+                background-color: #3E3E42;
+            }}
+        """)
+        btn_row.addWidget(self._refresh_btn, stretch=1)
+
+        layout.addLayout(btn_row)
 
         # Changes sub-header: indented from input/commit
         self._changes_header = QLabel("Changes")
@@ -824,8 +845,8 @@ class ChangesSection(QWidget):
             color: {TEXT_DARK};
             font-size: 11px;
             font-weight: 500;
-            padding-top: 12px;
-            padding-bottom: 4px;
+            padding-top: 6px;
+            padding-bottom: 2px;
             padding-left: 12px;
         """)
         layout.addWidget(self._changes_header)
@@ -833,8 +854,8 @@ class ChangesSection(QWidget):
         # Changes list container: indented to match header
         self._changes_container = QWidget()
         self._changes_layout = QVBoxLayout(self._changes_container)
-        self._changes_layout.setSpacing(4)
-        self._changes_layout.setContentsMargins(12, 0, 0, 0)
+        self._changes_layout.setSpacing(0)
+        self._changes_layout.setContentsMargins(24, 0, 0, 0)
         layout.addWidget(self._changes_container)
 
         layout.addStretch()
@@ -881,8 +902,8 @@ GRAPH_COLOR_LIGHT = "#FFBA6B40"  # 25% opacity for branch lines
 
 # Graph layout constants
 GRAPH_ROW_HEIGHT = 42
-GRAPH_MAIN_X = 10
-GRAPH_BRANCH_X = 40  # X position for branch commits (offset from main)
+GRAPH_LANE_WIDTH = 30   # Horizontal distance between lanes
+GRAPH_FIRST_LANE_X = 15  # X position of lane 0 (main)
 GRAPH_NODE_SIZE = 10
 
 
@@ -916,13 +937,13 @@ def _get_graph_assets():
 
 
 class CommitGraphWidget(QWidget):
-    """Custom widget that draws the git commit graph with a single orange color."""
+    """Custom widget that draws a GitHub-style git commit graph with lane-based layout."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._commits = []
-        self._is_main_commit = []  # True if commit is on main branch (for X position)
-        self._commit_rows = []  # Row (Y) position for each commit
+        self._lanes = []      # lane index for each commit
+        self._max_lanes = 1
         self._head = ""
         self.setMinimumHeight(350)
 
@@ -930,51 +951,95 @@ class CommitGraphWidget(QWidget):
         """Set the graph data."""
         self._commits = commits
         self._head = head
-        
-        # Determine visual lane based on branch NAME (not reachability)
-        # This preserves branch history even after merge
-        self._is_main_commit = []
-        for commit in self._commits:
-            branch = commit.get("branch", "main")
-            # Visual positioning: main commits on left, branch commits on right
-            is_main = branch in ("main", "master")
-            self._is_main_commit.append(is_main)
-        
-        # Calculate row positions (parallel commits share same row)
-        self._commit_rows = self._calculate_row_positions()
-        
-        # Calculate required height
-        num_rows = max(self._commit_rows) + 1 if self._commit_rows else 1
+        self._lanes, self._max_lanes = self._assign_lanes()
+
+        num_rows = len(self._commits) if self._commits else 1
         height = max(350, num_rows * GRAPH_ROW_HEIGHT + 40)
         self.setMinimumHeight(height)
         self.setFixedHeight(height)
         self.update()
-    
-    def _calculate_row_positions(self) -> list:
-        """Calculate row (Y) positions for commits.
-        
-        Each commit gets its own row. No overlapping.
-        Commits are ordered by index (newest first = top).
+
+    def _assign_lanes(self) -> tuple:
+        """Assign visual lanes using the standard git-graph algorithm.
+
+        Processes commits top-down (newest first). Maintains a list of
+        expected commit hashes where position = lane. When a commit is found,
+        its first parent replaces it in the same lane; additional parents
+        (from merge commits) get new lanes.
+
+        Returns (lanes_list, max_lane_count).
         """
         if not self._commits:
-            return []
-        
-        # Simple: each commit gets its own row based on index
-        return list(range(len(self._commits)))
+            return [], 1
+
+        lanes = [0] * len(self._commits)
+        active = []  # list of commit hashes; index = lane (None = empty slot)
+        max_lanes = 1
+
+        for i, commit in enumerate(self._commits):
+            h = commit["hash"]
+            parents = commit.get("parents", [])
+
+            # Find this commit in active lanes
+            if h in active:
+                lane = active.index(h)
+            else:
+                # New branch head — use first empty slot or append
+                if None in active:
+                    lane = active.index(None)
+                    active[lane] = h
+                else:
+                    lane = len(active)
+                    active.append(h)
+
+            lanes[i] = lane
+            max_lanes = max(max_lanes, len(active))
+
+            if parents:
+                first_parent = parents[0]
+                if first_parent in active:
+                    # First parent already tracked in another lane
+                    fp_lane = active.index(first_parent)
+                    if fp_lane != lane:
+                        # This lane merges into parent's lane — close this lane
+                        active[lane] = None
+                    # else: same lane, already correct
+                else:
+                    # Continue this lane with first parent
+                    active[lane] = first_parent
+
+                # Additional parents (merge) get new lanes
+                for p in parents[1:]:
+                    if p not in active:
+                        if None in active:
+                            slot = active.index(None)
+                            active[slot] = p
+                        else:
+                            active.append(p)
+                        max_lanes = max(max_lanes, len(active))
+            else:
+                # Root commit — close lane
+                active[lane] = None
+
+            # Trim trailing empty slots
+            while active and active[-1] is None:
+                active.pop()
+
+        return lanes, max_lanes
+
+    def _lane_x(self, lane: int) -> int:
+        """Get X pixel position for a lane."""
+        return GRAPH_FIRST_LANE_X + lane * GRAPH_LANE_WIDTH
 
     def _get_commit_y(self, index: int) -> int:
-        """Get Y position for a commit by its row."""
-        if hasattr(self, '_commit_rows') and self._commit_rows and index < len(self._commit_rows):
-            row = self._commit_rows[index]
-        else:
-            row = index
-        return 20 + row * GRAPH_ROW_HEIGHT
+        """Get Y position for a commit by its index."""
+        return 20 + index * GRAPH_ROW_HEIGHT
 
     def paintEvent(self, event):
         """Draw the graph."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        
+
         if not self._commits:
             painter.setPen(QColor(TEXT_DARK))
             painter.drawText(20, 30, "No commits yet")
@@ -982,124 +1047,93 @@ class CommitGraphWidget(QWidget):
             return
 
         assets = _get_graph_assets()
-        
-        # First: draw main vertical line (connects main branch commits)
-        self._draw_main_line(painter)
-        
-        # Second: draw branch curves connecting main to branch commits
-        self._draw_branch_curves(painter)
-        
-        # Third: draw nodes and labels
+
+        # 1. Draw connections (lines/curves between commits and parents)
+        self._draw_connections(painter)
+
+        # 2. Draw nodes and labels on top
         for i, commit in enumerate(self._commits):
             self._draw_commit(painter, i, commit, assets)
-        
+
         painter.end()
 
-    def _get_commit_x(self, index: int) -> int:
-        """Get X position for a commit. Main commits on left, branch commits offset right."""
-        if self._is_main_commit[index]:
-            return GRAPH_MAIN_X
-        else:
-            return GRAPH_BRANCH_X  # Branch commits offset to the right
+    def _draw_connections(self, painter):
+        """Draw all connection lines between commits and their parents.
 
-    def _draw_main_line(self, painter):
-        """Draw the main vertical line connecting main branch commits."""
-        # Find main branch commits
-        main_indices = [i for i, is_main in enumerate(self._is_main_commit) if is_main]
-        
-        if len(main_indices) < 2:
-            # If less than 2 main commits, draw line through all commits
-            if len(self._commits) >= 2:
-                pen = QPen(QColor(GRAPH_COLOR))
-                pen.setWidth(2)
-                painter.setPen(pen)
-                y1 = self._get_commit_y(0)
-                y2 = self._get_commit_y(len(self._commits) - 1)
-                painter.drawLine(GRAPH_MAIN_X, y1, GRAPH_MAIN_X, y2)
-            return
-        
-        pen = QPen(QColor(GRAPH_COLOR))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        
-        # Draw line from first to last main commit
-        y1 = self._get_commit_y(main_indices[0])
-        y2 = self._get_commit_y(main_indices[-1])
-        painter.drawLine(GRAPH_MAIN_X, y1, GRAPH_MAIN_X, y2)
-
-    def _draw_branch_curves(self, painter):
-        """Draw smooth branch forks and merges.
-        
-        Fork: smooth curve from parent node to branch node
-        Merge: vertical line up from branch, smooth curve into merge node
+        Same-lane on lane 0 (main): solid line.
+        Same-lane on branch lanes: dashed line.
+        Cross-lane: dashed curve that only spans one row-height at the
+        transition point, with straight vertical segments for the rest.
         """
-        color = QColor(GRAPH_COLOR)
-        color.setAlphaF(0.5)
-        
-        pen = QPen(color)
-        pen.setWidth(1)
-        pen.setDashPattern([3, 3])
-        painter.setPen(pen)
-        
-        branch_x = GRAPH_BRANCH_X
-        
-        # Build hash -> index lookup
-        hash_to_idx = {c.get("hash"): i for i, c in enumerate(self._commits)}
-        
-        # Track branch commits and their fork/merge points
-        branch_indices = [i for i, is_main in enumerate(self._is_main_commit) if not is_main]
-        
-        for branch_idx in branch_indices:
-            branch_commit = self._commits[branch_idx]
-            branch_y = self._get_commit_y(branch_idx)
-            
-            # Find fork point (parent of branch commit)
-            parents = branch_commit.get("parents", [])
-            fork_parent_idx = None
-            if parents:
-                parent_idx = hash_to_idx.get(parents[0])
-                if parent_idx is not None and self._is_main_commit[parent_idx]:
-                    fork_parent_idx = parent_idx
-                    parent_y = self._get_commit_y(parent_idx)
-                    
-                    # Draw fork: vertical line down from branch, then S-curve to main
-                    # (Mirror of the merge curve)
-                    
-                    # Vertical line from branch node down toward fork point
-                    curve_start_y = branch_y + (parent_y - branch_y) * 0.3
-                    painter.drawLine(branch_x, branch_y, branch_x, int(curve_start_y))
-                    
-                    # Smooth S-curve from vertical line to parent NODE
-                    path = QPainterPath()
-                    path.moveTo(branch_x, curve_start_y)
-                    path.cubicTo(
-                        branch_x, parent_y,        # First control (vertical toward parent)
-                        (GRAPH_MAIN_X + branch_x) / 2, parent_y,  # Second control (horizontal)
-                        GRAPH_MAIN_X, parent_y     # End point (parent node)
-                    )
-                    painter.drawPath(path)
-            
-            # Find merge point (commit that has this as a parent)
-            for i, commit in enumerate(self._commits):
-                commit_parents = commit.get("parents", [])
-                if len(commit_parents) >= 2 and branch_commit.get("hash") in commit_parents:
-                    if self._is_main_commit[i]:
-                        merge_y = self._get_commit_y(i)
-                        
-                        # Draw vertical line from branch node up toward merge
-                        # Stop where the curve will begin
-                        curve_start_y = merge_y + (branch_y - merge_y) * 0.3
-                        painter.drawLine(branch_x, branch_y, branch_x, int(curve_start_y))
-                        
-                        # Draw smooth curve from vertical line into merge NODE
+        hash_to_idx = {c["hash"]: i for i, c in enumerate(self._commits)}
+
+        # Pen for main lane (lane 0) — solid
+        main_pen = QPen(QColor(GRAPH_COLOR))
+        main_pen.setWidth(2)
+
+        # Pen for branch lanes — dashed
+        branch_color = QColor(GRAPH_COLOR)
+        branch_color.setAlphaF(0.6)
+        branch_pen = QPen(branch_color)
+        branch_pen.setWidth(2)
+        branch_pen.setDashPattern([4, 3])
+
+        for i, commit in enumerate(self._commits):
+            my_lane = self._lanes[i]
+            my_x = self._lane_x(my_lane)
+            my_y = self._get_commit_y(i)
+
+            for parent_hash in commit.get("parents", []):
+                parent_idx = hash_to_idx.get(parent_hash)
+                if parent_idx is None:
+                    continue
+
+                parent_lane = self._lanes[parent_idx]
+                parent_x = self._lane_x(parent_lane)
+                parent_y = self._get_commit_y(parent_idx)
+
+                if my_lane == parent_lane:
+                    # Same lane — solid if main, dashed if branch
+                    painter.setPen(main_pen if my_lane == 0 else branch_pen)
+                    painter.drawLine(my_x, my_y, parent_x, parent_y)
+                else:
+                    # Cross-lane connection:
+                    # Curve occupies exactly one row of vertical space,
+                    # straight vertical segments fill the rest.
+                    painter.setPen(branch_pen)
+
+                    # Determine curve direction
+                    # "fork out" = child on main (lane 0), parent on branch
+                    # "merge in" = child on main, second parent on branch
+                    # Either way: curve is one row high, anchored to the
+                    # end closer to the other lane's commit.
+
+                    row_h = GRAPH_ROW_HEIGHT
+
+                    if parent_y - my_y <= row_h:
+                        # Adjacent rows — just draw the curve directly
                         path = QPainterPath()
-                        path.moveTo(branch_x, curve_start_y)
-                        ctrl_x = (GRAPH_MAIN_X + branch_x) / 2
-                        path.cubicTo(
-                            branch_x, merge_y,     # First control (vertical toward merge)
-                            ctrl_x, merge_y,       # Second control (horizontal to merge)
-                            GRAPH_MAIN_X, merge_y  # End point (merge node)
-                        )
+                        path.moveTo(my_x, my_y)
+                        mid_y = (my_y + parent_y) / 2
+                        path.cubicTo(my_x, mid_y, parent_x, mid_y, parent_x, parent_y)
+                        painter.drawPath(path)
+                    else:
+                        # Multiple rows apart:
+                        # 1) Straight vertical on child's lane down to one row above parent
+                        # 2) Curve spanning one row to switch lanes
+                        # 3) (Parent lane straight segment if needed — handled by other connections)
+
+                        curve_top_y = parent_y - row_h
+
+                        # Vertical segment on child's lane
+                        if curve_top_y > my_y:
+                            painter.drawLine(my_x, my_y, my_x, int(curve_top_y))
+
+                        # Curve from child's lane to parent's lane (one row)
+                        path = QPainterPath()
+                        path.moveTo(my_x, curve_top_y)
+                        mid_y = (curve_top_y + parent_y) / 2
+                        path.cubicTo(my_x, mid_y, parent_x, mid_y, parent_x, parent_y)
                         painter.drawPath(path)
 
     def _draw_commit(self, painter, index: int, commit: dict, assets: dict):
@@ -1112,12 +1146,10 @@ class CommitGraphWidget(QWidget):
         if message.startswith("giteo: "):
             message = message[7:]
 
-        # Position: main commits on left, branch commits offset right
-        x = self._get_commit_x(index)
+        x = self._lane_x(self._lanes[index])
         y = self._get_commit_y(index)
 
-        # Draw node using SVG asset
-        # HEAD commit: ring (outline), All others: filled
+        # Draw node
         node_rect = QRect(
             x - GRAPH_NODE_SIZE // 2,
             y - GRAPH_NODE_SIZE // 2,
@@ -1129,7 +1161,6 @@ class CommitGraphWidget(QWidget):
         if asset_key in assets:
             assets[asset_key].render(painter, node_rect)
         else:
-            # Fallback: draw circle with QPainter
             color = QColor(GRAPH_COLOR)
             if is_head:
                 painter.setPen(QPen(color, 2))
@@ -1140,41 +1171,44 @@ class CommitGraphWidget(QWidget):
                 painter.setBrush(QBrush(color))
             painter.drawEllipse(node_rect)
 
-        # Text always starts after the branch line (rightmost position)
-        # This ensures text never overlaps with branch lines
-        text_x = GRAPH_BRANCH_X + GRAPH_NODE_SIZE + 12
-        
-        # Draw full commit message (no truncation)
-        painter.setPen(QColor(TEXT_DARK))  # Grey color for message
+        # Text starts after the rightmost possible lane
+        text_x = self._lane_x(max(self._max_lanes, 2)) + GRAPH_NODE_SIZE
+
+        # Draw commit message
+        painter.setPen(QColor(TEXT_DARK))
         painter.setFont(QFont("SF Pro Display", 11))
         painter.drawText(text_x, y + 4, message)
-        
+
         # Only draw branch pill for HEAD commit
         if is_head:
-            # Calculate message width to position pill after it
-            msg_width = len(message) * 6 + 12
+            fm = QFontMetrics(QFont("SF Pro Display", 11))
+            msg_width = fm.horizontalAdvance(message) + 10
             pill_x = text_x + msg_width
-            pill_y = y - 9
-            self._draw_branch_pill(painter, branch, pill_x, pill_y)
+            self._draw_branch_pill(painter, branch, pill_x, y)
 
     def _draw_branch_pill(self, painter, branch: str, x: int, y: int):
-        """Draw a branch label pill (all same orange color)."""
+        """Draw a branch label pill (all same orange color), vertically centered on y."""
         color = QColor(GRAPH_COLOR)
-        
-        # Calculate pill size
+
+        # Calculate pill size using font metrics
         font = QFont("SF Pro Display", 10, QFont.DemiBold)
         painter.setFont(font)
-        text_width = len(branch) * 7 + 16
-        pill_height = 18
-        
-        # Draw pill background
+        fm = QFontMetrics(font)
+        text_width = fm.horizontalAdvance(branch)
+        h_pad = 16  # horizontal padding (8 each side)
+        pill_width = text_width + h_pad
+        pill_height = 22
+
+        # Draw pill background — centered on the node Y
+        pill_y = y - pill_height // 2
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(color))
-        painter.drawRoundedRect(x, y, text_width, pill_height, 9, 9)
-        
-        # Draw text
+        painter.drawRoundedRect(x, pill_y, pill_width, pill_height, pill_height // 2, pill_height // 2)
+
+        # Draw text centered in pill
+        text_y = pill_y + (pill_height + fm.ascent() - fm.descent()) // 2
         painter.setPen(QColor(TEXT_BLACK))
-        painter.drawText(x + 8, y + 13, branch)
+        painter.drawText(x + h_pad // 2, text_y, branch)
 
 
 class CommitGraphSection(QWidget):
@@ -1193,8 +1227,23 @@ class CommitGraphSection(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setStyleSheet("""
+            QScrollArea { border: none; background: transparent; }
+            QScrollBar:vertical {
+                background: transparent;
+                width: 6px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255,180,99,0.3);
+                border-radius: 3px;
+                min-height: 20px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+        """)
         scroll.setMinimumHeight(350)
 
         self._graph_widget = CommitGraphWidget()
@@ -1338,6 +1387,7 @@ class GiteoPanel(QMainWindow):
         self._changes_section = CollapsibleSection("CHANGES")
         self._changes_widget = ChangesSection()
         self._changes_widget.commit_requested.connect(self.on_save)
+        self._changes_widget.refresh_requested.connect(self.refresh_changes)
         self._changes_section.add_widget(self._changes_widget)
         sections_layout.addWidget(self._changes_section)
 
@@ -1442,7 +1492,7 @@ class GiteoPanel(QMainWindow):
 
     def refresh_commits(self):
         _log("Refreshing commit graph...")
-        self._run_async({"action": "get_commit_graph", "limit": 20}, self._on_commits_result)
+        self._run_async({"action": "get_commit_graph", "limit": 0}, self._on_commits_result)
 
     def _on_commits_result(self, result):
         try:
