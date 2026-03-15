@@ -368,28 +368,20 @@ def git_log_with_topology(project_dir: str, max_count: int = 30) -> dict:
 
     # Get commits reachable from main branch (for visual positioning)
     main_commits = set()
-    main_log = _run(
-        ["log", main_branch, f"--max-count={max_count}", "--pretty=format:%H"],
-        cwd=project_dir,
-        check=False,
-    )
+    main_cmd = ["log", main_branch, "--pretty=format:%H"]
+    if max_count > 0:
+        main_cmd.insert(2, f"--max-count={max_count}")
+    main_log = _run(main_cmd, cwd=project_dir, check=False)
     if main_log.returncode == 0:
         for line in main_log.stdout.strip().split("\n"):
             if line.strip():
                 main_commits.add(line.strip()[:7])
 
     # Get commits with parent hashes
-    result = _run(
-        [
-            "log",
-            "--all",
-            f"--max-count={max_count}",
-            "--pretty=format:%H|%P|%s|%D",
-            "--date-order",
-        ],
-        cwd=project_dir,
-        check=False,
-    )
+    log_cmd = ["log", "--all", "--pretty=format:%H|%P|%s|%D", "--date-order"]
+    if max_count > 0:
+        log_cmd.insert(2, f"--max-count={max_count}")
+    result = _run(log_cmd, cwd=project_dir, check=False)
     if result.returncode != 0:
         return {"commits": [], "branches": [], "head": ""}
 
