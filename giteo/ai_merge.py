@@ -635,3 +635,195 @@ def merge_with_ai(
 
     print("  AI merge resolution applied.")
     return True
+
+
+# -- VIT UI: Branch Comparison Analysis ---------------------------------------
+
+BRANCH_COMPARISON_PROMPT = """\
+You are analyzing two branches of a video editing project to help a user decide how to merge them.
+
+Branch A: "{branch_a}"
+Branch B: "{branch_b}"
+
+Changes in Branch A:
+{changes_a}
+
+Changes in Branch B:
+{changes_b}
+
+Analyze these changes and provide:
+1. A brief summary of what each branch focused on
+2. Whether there are potential conflicts
+3. A recommendation for how to merge (which branch to prioritize, or if manual review is needed)
+
+Return a JSON object with this structure:
+{{
+  "summary_a": "Brief description of what branch A changed",
+  "summary_b": "Brief description of what branch B changed",
+  "conflicts": ["list of potential conflict areas, if any"],
+  "recommendation": "accept_a" | "accept_b" | "manual_review",
+  "explanation": "Detailed explanation of the recommendation"
+}}
+"""
+
+
+def analyze_branch_comparison(
+    branch_a: str,
+    branch_b: str,
+    changes_a: Dict[str, list],
+    changes_b: Dict[str, list],
+) -> dict:
+    """Analyze two branches and provide merge recommendation.
+
+    Args:
+        branch_a: Name of first branch
+        branch_b: Name of second branch
+        changes_a: Dict of changes in branch_a by category
+        changes_b: Dict of changes in branch_b by category
+
+    Returns:
+        Dict with summary, conflicts, recommendation, and explanation
+    """
+    try:
+        model = _get_genai_model("You are a video editing merge advisor.")
+    except (ImportError, ValueError) as e:
+        return {
+            "summary_a": f"Branch with {sum(len(v) for v in changes_a.values())} changes",
+            "summary_b": f"Branch with {sum(len(v) for v in changes_b.values())} changes",
+            "conflicts": [],
+            "recommendation": "manual_review",
+            "explanation": f"AI analysis unavailable: {e}",
+        }
+
+    # Format changes for the prompt
+    def format_changes(changes: dict) -> str:
+        lines = []
+        for category, items in changes.items():
+            if items:
+                lines.append(f"  {category.upper()}: {len(items)} changes")
+                for item in items[:5]:  # Limit to first 5 per category
+                    lines.append(f"    - {item.get('name', item.get('id', 'unknown'))}: {item.get('type', 'modified')}")
+                if len(items) > 5:
+                    lines.append(f"    - ... and {len(items) - 5} more")
+        return "\n".join(lines) if lines else "  No changes"
+
+    prompt = BRANCH_COMPARISON_PROMPT.format(
+        branch_a=branch_a,
+        branch_b=branch_b,
+        changes_a=format_changes(changes_a),
+        changes_b=format_changes(changes_b),
+    )
+
+    try:
+        response = model.generate_content(prompt)
+        return _extract_json_from_response(response.text)
+    except Exception as e:
+        # Fallback to simple heuristic
+        a_count = sum(len(v) for v in changes_a.values())
+        b_count = sum(len(v) for v in changes_b.values())
+
+        if a_count == 0 and b_count > 0:
+            return {
+                "summary_a": "No changes",
+                "summary_b": f"{b_count} changes",
+                "conflicts": [],
+                "recommendation": "accept_b",
+                "explanation": f"Only {branch_b} has changes.",
+            }
+        elif b_count == 0 and a_count > 0:
+            return {
+                "summary_a": f"{a_count} changes",
+                "summary_b": "No changes",
+                "conflicts": [],
+                "recommendation": "accept_a",
+                "explanation": f"Only {branch_a} has changes.",
+            }
+        else:
+            return {
+                "summary_a": f"{a_count} changes",
+                "summary_b": f"{b_count} changes",
+                "conflicts": ["Both branches have changes"],
+                "recommendation": "manual_review",
+                "explanation": f"Both branches have changes. Manual review recommended. (AI error: {e})",
+            }
+
+
+# -- VIT UI: Commit Classification --------------------------------------------
+
+COMMIT_CLASSIFICATION_PROMPT = """\
+You are classifying a video editing commit to determine its primary focus area.
+
+Commit: {hash}
+Message: {message}
+Files changed: {files}
+
+Based on the files changed and commit message, determine the PRIMARY category of this commit.
+
+Categories:
+- "audio": Changes to audio tracks, volume, pan, audio effects
+- "video": Changes to video clips, cuts, transforms, track positions
+- "color": Changes to color grading, LUTs, color correction
+
+Return a JSON object:
+{{
+  "category": "audio" | "video" | "color",
+  "confidence": "high" | "medium" | "low",
+  "reasoning": "Brief explanation"
+}}
+"""
+
+
+def classify_commit_type(
+    commit_hash: str,
+    files_changed: List[str],
+    message: str = "",
+) -> str:
+    """Use Gemini to classify a commit's primary category.
+
+    Args:
+        commit_hash: Short commit hash
+        files_changed: List of files changed in the commit
+        message: Commit message
+
+    Returns:
+        Category string: "audio", "video", or "color"
+    """
+    # Quick heuristic check first
+    audio_files = [f for f in files_changed if "audio" in f.lower()]
+    color_files = [f for f in files_changed if "color" in f.lower()]
+    video_files = [f for f in files_changed if "cuts" in f.lower() or "video" in f.lower()]
+
+    # If clear majority, skip AI
+    total = len(files_changed)
+    if total > 0:
+        if len(audio_files) > total * 0.6:
+            return "audio"
+        if len(color_files) > total * 0.6:
+            return "color"
+        if len(video_files) > total * 0.6:
+            return "video"
+
+    # Use AI for ambiguous cases
+    try:
+        model = _get_genai_model("You are a video editing commit classifier.")
+    except (ImportError, ValueError):
+        # Fallback to simple heuristic
+        from .core import categorize_commit
+        return categorize_commit(files_changed)
+
+    prompt = COMMIT_CLASSIFICATION_PROMPT.format(
+        hash=commit_hash,
+        message=message or "No message",
+        files=", ".join(files_changed) if files_changed else "None",
+    )
+
+    try:
+        response = model.generate_content(prompt)
+        data = _extract_json_from_response(response.text)
+        category = data.get("category", "video")
+        if category in ("audio", "video", "color"):
+            return category
+        return "video"
+    except Exception:
+        from .core import categorize_commit
+        return categorize_commit(files_changed)

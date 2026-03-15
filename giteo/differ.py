@@ -472,3 +472,229 @@ def diff_from_project(project_dir: str, ref: str = "HEAD") -> str:
     timeline_name = metadata.get("timeline_name", "")
 
     return format_diff(old_files, new_files, timeline_name=timeline_name)
+
+
+def get_changes_by_category(project_dir: str, ref: str = "HEAD") -> Dict[str, List[dict]]:
+    """Get changes categorized by domain (audio, video, color).
+
+    Returns a dict with keys: audio, video, color
+    Each value is a list of dicts with: id, name, type (added/removed/modified), details
+    """
+    from .core import git_show_file
+
+    domain_files = {
+        "cuts": "timeline/cuts.json",
+        "color": "timeline/color.json",
+        "audio": "timeline/audio.json",
+    }
+
+    old_files = {}
+    new_files = {}
+    for domain, filepath in domain_files.items():
+        old_content = git_show_file(project_dir, ref, filepath)
+        old_files[domain] = json.loads(old_content) if old_content else {}
+
+        full_path = os.path.join(project_dir, filepath)
+        if os.path.exists(full_path):
+            with open(full_path) as f:
+                new_files[domain] = json.load(f)
+        else:
+            new_files[domain] = {}
+
+    changes = {"audio": [], "video": [], "color": []}
+
+    # Video changes (from cuts.json)
+    old_cuts = old_files.get("cuts", {})
+    new_cuts = new_files.get("cuts", {})
+    old_video_items = {}
+    for track in old_cuts.get("video_tracks", []):
+        for item in track.get("items", []):
+            old_video_items[item["id"]] = item
+    new_video_items = {}
+    for track in new_cuts.get("video_tracks", []):
+        for item in track.get("items", []):
+            new_video_items[item["id"]] = item
+
+    for item_id, item in new_video_items.items():
+        if item_id not in old_video_items:
+            changes["video"].append({
+                "id": item_id,
+                "name": item.get("name", item_id),
+                "type": "added",
+                "details": f"Added to V{item.get('track_index', '?')}"
+            })
+        elif item != old_video_items[item_id]:
+            changes["video"].append({
+                "id": item_id,
+                "name": item.get("name", item_id),
+                "type": "modified",
+                "details": "Trimmed or moved"
+            })
+    for item_id, item in old_video_items.items():
+        if item_id not in new_video_items:
+            changes["video"].append({
+                "id": item_id,
+                "name": item.get("name", item_id),
+                "type": "removed",
+                "details": "Removed"
+            })
+
+    # Audio changes (from audio.json)
+    old_audio = old_files.get("audio", {})
+    new_audio = new_files.get("audio", {})
+    old_audio_items = {}
+    for track in old_audio.get("audio_tracks", []):
+        for item in track.get("items", []):
+            old_audio_items[item["id"]] = item
+    new_audio_items = {}
+    for track in new_audio.get("audio_tracks", []):
+        for item in track.get("items", []):
+            new_audio_items[item["id"]] = item
+
+    for item_id, item in new_audio_items.items():
+        if item_id not in old_audio_items:
+            changes["audio"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "added",
+                "details": "Added audio clip"
+            })
+        elif item != old_audio_items[item_id]:
+            changes["audio"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "modified",
+                "details": "Volume or pan changed"
+            })
+    for item_id in old_audio_items:
+        if item_id not in new_audio_items:
+            changes["audio"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "removed",
+                "details": "Removed"
+            })
+
+    # Color changes (from color.json)
+    old_color = old_files.get("color", {})
+    new_color = new_files.get("color", {})
+    old_grades = old_color.get("grades", {})
+    new_grades = new_color.get("grades", {})
+
+    for item_id, grade in new_grades.items():
+        if item_id not in old_grades:
+            changes["color"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "added",
+                "details": "Added color grade"
+            })
+        elif grade != old_grades[item_id]:
+            changes["color"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "modified",
+                "details": "Grade modified"
+            })
+    for item_id in old_grades:
+        if item_id not in new_grades:
+            changes["color"].append({
+                "id": item_id,
+                "name": item_id,
+                "type": "removed",
+                "details": "Grade removed"
+            })
+
+    return changes
+
+
+def get_branch_diff_by_category(
+    project_dir: str, branch_a: str, branch_b: str
+) -> Tuple[Dict[str, List[dict]], Dict[str, List[dict]]]:
+    """Compare two branches and return categorized changes for each.
+
+    Returns (changes_a, changes_b) where each is a dict with audio/video/color keys.
+    """
+    from .core import git_show_file, git_merge_base
+
+    # Find common ancestor
+    base = git_merge_base(project_dir, branch_a, branch_b)
+
+    domain_files = {
+        "cuts": "timeline/cuts.json",
+        "color": "timeline/color.json",
+        "audio": "timeline/audio.json",
+    }
+
+    def load_branch_files(branch: str) -> dict:
+        files = {}
+        for domain, filepath in domain_files.items():
+            content = git_show_file(project_dir, branch, filepath)
+            files[domain] = json.loads(content) if content else {}
+        return files
+
+    base_files = load_branch_files(base) if base else {}
+    a_files = load_branch_files(branch_a)
+    b_files = load_branch_files(branch_b)
+
+    def count_domain_changes(old: dict, new: dict, domain: str) -> List[dict]:
+        changes = []
+        if domain == "cuts":
+            old_items = {}
+            for track in old.get("video_tracks", []):
+                for item in track.get("items", []):
+                    old_items[item["id"]] = item
+            new_items = {}
+            for track in new.get("video_tracks", []):
+                for item in track.get("items", []):
+                    new_items[item["id"]] = item
+            for item_id, item in new_items.items():
+                if item_id not in old_items:
+                    changes.append({"id": item_id, "name": item.get("name", item_id), "type": "added"})
+                elif item != old_items[item_id]:
+                    changes.append({"id": item_id, "name": item.get("name", item_id), "type": "modified"})
+            for item_id, item in old_items.items():
+                if item_id not in new_items:
+                    changes.append({"id": item_id, "name": item.get("name", item_id), "type": "removed"})
+        elif domain == "audio":
+            old_items = {}
+            for track in old.get("audio_tracks", []):
+                for item in track.get("items", []):
+                    old_items[item["id"]] = item
+            new_items = {}
+            for track in new.get("audio_tracks", []):
+                for item in track.get("items", []):
+                    new_items[item["id"]] = item
+            for item_id in new_items:
+                if item_id not in old_items:
+                    changes.append({"id": item_id, "name": item_id, "type": "added"})
+                elif new_items[item_id] != old_items[item_id]:
+                    changes.append({"id": item_id, "name": item_id, "type": "modified"})
+            for item_id in old_items:
+                if item_id not in new_items:
+                    changes.append({"id": item_id, "name": item_id, "type": "removed"})
+        elif domain == "color":
+            old_grades = old.get("grades", {})
+            new_grades = new.get("grades", {})
+            for item_id in new_grades:
+                if item_id not in old_grades:
+                    changes.append({"id": item_id, "name": item_id, "type": "added"})
+                elif new_grades[item_id] != old_grades[item_id]:
+                    changes.append({"id": item_id, "name": item_id, "type": "modified"})
+            for item_id in old_grades:
+                if item_id not in new_grades:
+                    changes.append({"id": item_id, "name": item_id, "type": "removed"})
+        return changes
+
+    changes_a = {
+        "video": count_domain_changes(base_files.get("cuts", {}), a_files.get("cuts", {}), "cuts"),
+        "audio": count_domain_changes(base_files.get("audio", {}), a_files.get("audio", {}), "audio"),
+        "color": count_domain_changes(base_files.get("color", {}), a_files.get("color", {}), "color"),
+    }
+    changes_b = {
+        "video": count_domain_changes(base_files.get("cuts", {}), b_files.get("cuts", {}), "cuts"),
+        "audio": count_domain_changes(base_files.get("audio", {}), b_files.get("audio", {}), "audio"),
+        "color": count_domain_changes(base_files.get("color", {}), b_files.get("color", {}), "color"),
+    }
+
+    return changes_a, changes_b

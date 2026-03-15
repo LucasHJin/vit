@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import shutil
 import sys
 
 from . import __version__
@@ -380,17 +381,27 @@ def cmd_validate(args):
         print("  Validation passed — no issues found.")
 
 
-RESOLVE_SCRIPTS_DIR = os.path.expanduser(
-    "~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit"
-)
+if sys.platform == "win32":
+    RESOLVE_SCRIPTS_DIR = os.path.join(
+        os.environ.get("APPDATA", ""),
+        "Blackmagic Design",
+        "DaVinci Resolve",
+        "Fusion",
+        "Scripts",
+        "Edit",
+    )
+else:
+    RESOLVE_SCRIPTS_DIR = os.path.expanduser(
+        "~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit"
+    )
 
 RESOLVE_SCRIPT_NAMES = [
-    "giteo_panel_launcher.py",
+    "giteo_panel.py",
 ]
 
 
 _RESOLVE_MENU_NAMES = {
-    "giteo_panel_launcher.py": "Giteo.py",
+    "giteo_panel.py": "Giteo.py",
 }
 
 
@@ -423,7 +434,10 @@ def cmd_install_resolve(args):
         if os.path.islink(dest) or os.path.exists(dest):
             os.remove(dest)
 
-        os.symlink(source, dest)
+        if sys.platform == "win32":
+            shutil.copy2(source, dest)
+        else:
+            os.symlink(source, dest)
         print(f"  Linked: {menu_name} → {source}")
 
     # Save the repo root path so Resolve scripts can find the giteo package
@@ -434,8 +448,8 @@ def cmd_install_resolve(args):
         f.write(package_dir)
     print(f"  Saved package path: {package_dir}")
 
-    print(f"\n  Installed {len(RESOLVE_SCRIPT_NAMES)} scripts to Resolve.")
-    print("  Restart Resolve, then find them under Workspace > Scripts.")
+    print(f"\n  Installed {len(RESOLVE_SCRIPT_NAMES)} script(s) to Resolve.")
+    print("  Restart Resolve, then run Workspace > Scripts > Giteo for the unified panel.")
 
 
 def cmd_uninstall_resolve(args):
