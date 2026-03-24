@@ -34,11 +34,13 @@ Each collaborator works on a branch. Vit serializes the NLE timeline into domain
 ## System Architecture
 
 ```
-Resolve (Scripts menu) → vit-core (Python) → Git (system binary)
+Resolve Panel (primary)  → vit-core (Python) → Git (system binary)
+CLI (`vit` command)      → vit-core (Python) → Git (system binary)  [power users / fallback]
 ```
 
+- **Primary interface:** Resolve plugin panel (`vit_panel_launcher.py` + `vit_panel_tkinter.py`), accessed via Resolve's Scripts menu. This is what end users (editors, colorists) interact with.
 - **vit-core:** serializer.py, deserializer.py, json_writer.py, core.py, ai_merge.py, differ.py, cli.py
-- **Resolve scripts:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
+- **Resolve scripts dir:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
 - **Fallback:** If Resolve API too limited → FCPXML + OpenTimelineIO; vit-core stays the same.
 
 ---
@@ -97,6 +99,8 @@ Different roles = different files = conflict-free merges. **Full JSON schemas:**
 
 ## Vit Commands
 
+These are CLI commands for power users and scripting. Most users access equivalent actions via the Resolve panel GUI.
+
 | Action | Command | Under the hood |
 |--------|---------|----------------|
 | Start tracking | `vit init` | `.vit/`, `git init`, initial snapshot |
@@ -115,7 +119,11 @@ Different roles = different files = conflict-free merges. **Full JSON schemas:**
 
 ## Resolve Plugin Scripts
 
-Standalone Python files in `resolve_plugin/`. Pattern: add vit to path, get `resolve`/`project`/`timeline`, call `serialize_timeline` + `git_add` + `git_commit`. Symlink to Resolve's Edit scripts folder.
+**Primary user interface.** The panel (`vit_panel_launcher.py` + `vit_panel_tkinter.py`) is the main way users interact with Vit — launched from Resolve's Scripts menu. It exposes commit, branch, merge, push/pull, and status as GUI actions.
+
+`vit_panel_launcher.py` handles all backend actions (serialize, deserialize, git ops) and serves responses to the UI layer. `vit_panel_tkinter.py` is the Tkinter-based fallback UI.
+
+All scripts follow the pattern: add vit to path, get `resolve`/`project`/`timeline`, call into vit-core. Symlink the folder to Resolve's Edit scripts dir.
 
 ---
 
@@ -124,6 +132,8 @@ Standalone Python files in `resolve_plugin/`. Pattern: add vit to path, get `res
 Git merges work when different domains are edited. AI steps in for cross-domain issues: orphaned refs (deleted clip in color.json), audio/video sync, overlapping clips, speed mismatches. **Details:** `@docs/AI_MERGE_DETAILS.md`
 
 Flow: Try git merge → post-merge validation (validator.py) → if issues, send to LLM (ai_merge.py) → user confirms → write resolved files.
+
+**AI in the GUI is enrichment-only.** The panel never blocks on AI — `analyze_branch_comparison` and `classify_commit_type` degrade to heuristic fallbacks if `GEMINI_API_KEY` is absent. AI conflict resolution (`merge_with_ai`) only runs in the CLI (`vit merge`); use `vit merge --no-ai` to skip it entirely. The GUI works 100% without a key.
 
 ---
 
@@ -157,9 +167,8 @@ Key points: Extended props (RotationAngle, Crop, Flip, etc.) are static only —
 
 ## Engineering Guidelines
 
-- **Founding engineer mindset** — MVP under time pressure
 - **Simple over clever** — subprocess for git, json.dumps
-- **No premature abstractions** — one serializer first
+- **No unnecessary abstractions** — solve the current problem cleanly
 - **JSON formatting** — `indent=2, sort_keys=True` always
 - **Fail loudly** — clear errors, no silent swallows
 - **Focused modules** — core.py = git, serializer.py = timeline→JSON

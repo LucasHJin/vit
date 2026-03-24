@@ -1,6 +1,6 @@
 # Vit JSON Schemas
 
-Full schema examples for domain-split timeline files. Reference when implementing serializer/deserializer or debugging JSON structure.
+Full schema examples for domain-split timeline files. All files live in the `timeline/` directory of your vit project. Grade sidecar files (`.cube` LUTs) are stored in `timeline/grades/`.
 
 ## timeline/cuts.json
 
@@ -48,16 +48,43 @@ Full schema examples for domain-split timeline files. Reference when implementin
 
 ## timeline/color.json
 
+Each entry is keyed by clip `id` (matching `cuts.json`). `lut_file` points to the baked `.cube` grade file in `timeline/grades/`.
+
 ```json
 {
   "grades": {
     "item_001": {
-      "contrast": 1.0,
-      "saturation": 1.1,
-      "lut": null
+      "num_nodes": 2,
+      "nodes": [
+        {
+          "node_index": 1,
+          "label": "Corrector",
+          "tools": ["Primary Offset"],
+          "lut_path": null
+        },
+        {
+          "node_index": 2,
+          "label": "Sat",
+          "tools": ["Primary Corrector"],
+          "lut_path": null
+        }
+      ],
+      "version_name": "Version 1",
+      "drx_file": null,
+      "lut_file": "item_001.cube"
     }
   }
 }
+```
+
+## timeline/grades/
+
+Binary `.cube` (33-point 3D LUT) files — one per graded clip, named `<item_id>.cube`. These are exported by `ExportLUT()` and parsed on restore to drive `SetCDL()`. Text-based and git-diffable.
+
+```
+timeline/grades/
+  item_001.cube
+  item_003.cube
 ```
 
 ## timeline/audio.json

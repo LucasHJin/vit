@@ -41,14 +41,18 @@ All return **static values only** — no keyframe data. Serialized in `cuts.json
 
 | Method | Exists? | Notes |
 |--------|---------|-------|
-| `SetCDL()` | **Yes** | Write CDL values |
+| `ExportLUT(exportType, path)` | **Yes** | Exports clip grade as a baked .cube LUT — works on Free |
+| `SetCDL(dict)` | **Yes** | Applies CDL values to a corrector node |
 | `GetCDL()` | **NO** | Cannot read CDL |
-| `SetLUT(nodeIndex, path)` | **Yes** | Write LUT per node |
+| `SetLUT(nodeIndex, path)` | **Yes (LUT nodes only)** | Only works for LUT-type nodes, not standard corrector nodes |
 | `GetLUT(nodeIndex)` | **NO** | Cannot read LUT paths |
 | `GetNumNodes()` | Undocumented | Works in practice |
 | Color wheels (Lift/Gamma/Gain) | **NO** | No read API |
 
-**Current approach:** Capture contrast, saturation via `GetProperty()` + node structure. CDL/wheel fields in model can be populated by manual JSON or AI merge.
+**Current approach:**
+- **Capture:** `clip.ExportLUT(1, path)` exports a 33-point `.cube` LUT per clip into `timeline/grades/`. Works on Resolve Free. The `.cube` file bakes all nodes into a single LUT.
+- **Restore:** Parse the `.cube` file to sample black/white/midpoint, estimate CDL slope/offset/power, then apply via `clip.SetCDL()`. `SetLUT()` is not used for restore — it only works on LUT-type nodes, not the standard corrector nodes users grade with.
+- **Studio bonus:** `ExportStills` / `.drx` files are attempted if available (Studio-only). DRX is a higher-fidelity, node-editable backup but not required for round-tripping.
 
 ## Timeline — No Deletion API
 

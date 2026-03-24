@@ -1,97 +1,104 @@
-# Same project, different people
+# Collaborating with Vit
 
-Vit shares the **edit** (timeline, color, sound). It does **not** upload your video files—share footage the way you already do (drive, Dropbox, server).
+Vit shares the **edit** — timeline cuts, color grades, audio levels. It does **not** upload video files. Share footage the way you already do (shared drive, Dropbox, server).
 
-You need **Vit installed**, **Git installed**, and (for Resolve) **`vit install-resolve`** once, then restart Resolve. If any command is “not found,” finish install from the main **README** first.
-
----
-
-## Before the host runs setup
-
-1. On **GitHub** (or GitLab, etc.), create a **new empty repository** (no README, no license).  
-2. Copy the **HTTPS clone URL** (looks like `https://github.com/yourname/your-repo.git`).
+**Prerequisites:** Vit installed, Git installed, `vit install-resolve` run once, Resolve restarted. See the main [README](../README.md) if any command is not found.
 
 ---
 
-## Person who starts the project (once)
+## Before anyone starts
 
-1. Open **Terminal**.
-2. Go where you want the folder, for example:  
-   `cd ~/Documents`
-3. Create the Vit project (pick your own folder name):  
-   `vit init my-project`  
-   Then enter it:  
-   `cd my-project`
-4. In **DaVinci Resolve**: open or create a project and a timeline.  
-5. **Workspace → Scripts** → run a Vit item (e.g. **Save Version**). If a window asks for a folder, choose **`my-project`** (the folder that contains `.vit`).  
-   - If no window appears, quit Resolve, then in Terminal run:  
-     `export VIT_PROJECT_DIR="$HOME/Documents/my-project"`  
-     (change the path if yours is different), then open Resolve again and retry.
-6. Back in **Terminal** (still inside `my-project`):  
-   `vit collab setup`  
-   Paste the **empty repo URL** when asked. Sign in to GitHub if Terminal asks.  
-7. Copy the **`vit clone …`** line Terminal prints and send it to everyone.
+1. On **GitHub** (or GitLab, etc.), create a **new empty repository** — no README, no license file.
+2. Copy the **HTTPS clone URL** (e.g. `https://github.com/yourname/your-repo.git`).
 
 ---
 
-## Everyone else joining (once)
+## Person who starts the project (once, in Terminal)
 
-1. Open **Terminal**.
-2. Go where you want the project folder to appear, for example:  
-   `cd ~/Documents`
-3. Paste the full command you were sent, for example:  
-   `vit clone https://github.com/yourname/your-repo.git`  
-   Terminal creates a **new folder** (usually named like the repo).
-4. Go into that folder:  
-   `cd your-repo`  
-   (use the real folder name Terminal showed after clone.)
-5. Load the latest saved edit into the project files:  
-   `vit checkout main`  
-6. Copy your team’s **footage** onto your machine (same files, any path is OK if you relink).
-7. **DaVinci Resolve**: open **your** Resolve project (or create one with a timeline).  
-8. **Workspace → Scripts** → run Vit’s **Switch Branch / Restore** (or the item that restores the timeline). When asked for a folder, pick the **cloned** folder from step 4.  
-9. **Relink** offline clips in Resolve if you see red media.  
-10. Create your own line of work (use a name your lead agrees on):  
-    `vit branch your-name`
-
----
-
-## Every work session
-
-1. **Terminal** → `cd` into your vit project folder (same folder that has `.vit` inside).  
-2. `vit pull`  
-3. **Resolve** → **Workspace → Scripts** → **Switch Branch / Restore** (or restore) on **your** branch so the timeline matches what you just pulled.  
-4. Edit as usual.  
-5. **Workspace → Scripts** → **Save Version** when you want to record this state.  
-6. **Terminal** → `vit push`
-
-Always run `vit pull` / `vit push` from **inside** the project folder, not from your home folder.
+1. Navigate to where you want the project folder:
+   ```bash
+   cd ~/Documents
+   ```
+2. Create and enter the Vit project:
+   ```bash
+   vit init my-project
+   cd my-project
+   ```
+3. Open **DaVinci Resolve**, open your project and timeline.
+4. Open the **Vit Panel** (`Workspace → Scripts → Vit Panel`). If it asks for a folder, choose the `my-project` folder (the one containing `.vit`).
+   - If the panel doesn't appear, quit Resolve, run `export VIT_PROJECT_DIR="$HOME/Documents/my-project"` in Terminal, then reopen Resolve.
+5. In the panel, click **Save Version** to create the first snapshot.
+6. Back in Terminal, connect to your shared repo:
+   ```bash
+   vit collab setup
+   ```
+   Paste the empty repo URL when prompted. Sign in to GitHub if asked.
+7. Send the `vit clone …` line Terminal prints to your collaborators.
 
 ---
 
-## Putting two people’s work together (lead / editor)
+## Collaborators joining (once, in Terminal)
 
-Do this from the **project folder** in Terminal.
+1. Navigate to where you want the project folder:
+   ```bash
+   cd ~/Documents
+   ```
+2. Clone using the command your lead sent:
+   ```bash
+   vit clone https://github.com/yourname/your-repo.git
+   cd your-repo
+   ```
+3. Pull the latest timeline state:
+   ```bash
+   vit checkout main
+   ```
+4. Copy your team's footage onto your machine (any local path is fine — you can relink in Resolve).
+5. Open **DaVinci Resolve**, open your project.
+6. Open the **Vit Panel** (`Workspace → Scripts → Vit Panel`), click **Switch Branch**, and choose `main` to restore the timeline.
+7. **Relink** any offline clips in Resolve if you see red media.
+8. Create your own branch (agree on a naming convention with your team):
+   ```bash
+   vit branch your-name
+   ```
 
-1. `vit pull`  
-2. `vit checkout main`  
-   (or whatever branch everyone merges **into**—your team should agree on the name.)  
-3. `vit merge other-persons-branch`  
-   Use the exact branch name they used (no spaces in the name is easiest).  
-4. `vit push`  
-5. In **Resolve**, run **Switch Branch / Restore** on that same branch so you **see** the merged timeline.
-
-Tell everyone else to `vit pull` and restore in Resolve when they’re ready to pick up the merge.
+From here, everything happens in the Vit Panel inside Resolve.
 
 ---
 
-## If something goes wrong
+## Every work session (Vit Panel)
 
-| Problem | What to try |
-|--------|----------------|
-| Vit says “not a project” | `cd` into the folder that contains `.vit`, then run the command again. |
-| Resolve says “No vit project” | Run a Vit script and pick the correct folder, or set `VIT_PROJECT_DIR` to that folder and restart Resolve. |
-| Clone worked but timeline looks wrong | In Terminal: `vit checkout main`. In Resolve: **Switch Branch / Restore**. |
-| `vit collab setup` push failed | Create an **empty** repo on the host first, then try again; check you’re logged into GitHub in Terminal. |
+1. Open the **Vit Panel** in Resolve.
+2. Click **Pull** to fetch the latest changes from the team.
+3. Click **Switch Branch** → select your branch to restore the timeline.
+4. Edit in Resolve as usual.
+5. Click **Save Version** to record your changes.
+6. Click **Push** to share your work.
 
-More detail: main **README** or whoever installed Vit for your team.
+---
+
+## Merging work (lead / editor, Vit Panel)
+
+1. Click **Pull** to get everyone's latest commits.
+2. Click **Switch Branch** → select `main` (or whichever branch your team merges into).
+3. Click **Merge** → select the branch to bring in. The panel shows a summary of changes and flags any conflicts.
+4. Click **Push** to share the merged result.
+5. Tell teammates to **Pull** and **Switch Branch** in their panels to see the merged timeline.
+
+For complex cross-domain conflicts (e.g., a clip deleted on one branch while color-graded on another), use the CLI for full AI-assisted resolution:
+```bash
+vit merge other-persons-branch
+```
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| "Not a vit project" | Make sure you're in the folder that contains `.vit`. |
+| "No vit project" in Resolve | Open the panel and pick the correct folder, or set `VIT_PROJECT_DIR` to that folder and restart Resolve. |
+| Timeline looks wrong after clone | Run `vit checkout main` in Terminal, then **Switch Branch** in the panel. |
+| `vit collab setup` fails | Make sure the GitHub repo is **empty** (no files), then try again. Check you're logged in to GitHub. |
+| Red media after switching branches | Footage paths differ — use Resolve's **Relink** to point clips at your local footage. |
+
+For anything else, see the main [README](../README.md).

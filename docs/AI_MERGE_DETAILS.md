@@ -1,4 +1,4 @@
-# AI-Powered Semantic Merge — Details
+# AI-Powered Semantic Merge
 
 ## Known Edge Cases Git Can't Handle
 
