@@ -503,9 +503,11 @@ def cmd_install_resolve(args):
 
     if not os.path.isdir(plugin_dir):
         # Fallback: check ~/.vit/vit-src/ (curl installer location)
-        plugin_dir = os.path.join(
-            os.path.expanduser("~"), ".vit", "vit-src", "resolve_plugin"
-        )
+        # Also update package_dir so package_path gets the correct value
+        vit_src = os.path.join(os.path.expanduser("~"), ".vit", "vit-src")
+        if os.path.isdir(os.path.join(vit_src, "resolve_plugin")):
+            package_dir = vit_src
+            plugin_dir = os.path.join(package_dir, "resolve_plugin")
 
     if not os.path.isdir(plugin_dir):
         print(f"  Error: resolve_plugin/ directory not found.")
