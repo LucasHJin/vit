@@ -9,10 +9,9 @@ setup(
     install_requires=[
         "google-generativeai",
         "rich",
+        "PySide6",
     ],
-    extras_require={
-        "qt": ["PySide6"],
-    },
+    extras_require={},
     entry_points={
         "console_scripts": [
             "vit=vit.cli:main",
