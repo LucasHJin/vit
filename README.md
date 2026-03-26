@@ -2,207 +2,279 @@
 
 [![Vit Demo](https://img.youtube.com/vi/phS28hhJSP8/maxresdefault.jpg)](https://www.youtube.com/watch?v=phS28hhJSP8)
 
-Vit brings git-style version control to video editing. Instead of versioning raw media files, Vit tracks **timeline metadata** — clip placements, color grades, audio levels, effects, and markers — as lightweight JSON, using Git as the backend.
+Vit brings git-style version control to video editing. Instead of versioning raw media files, Vit tracks **timeline metadata** as JSON and stores that history in Git.
 
-Collaborators (editors, colorists, sound designers) work in parallel on branches and merge changes cleanly, just like developers with code.
+Vit is built around the idea that editors, colorists, and sound designers should be able to work in parallel on branches, then merge edit decisions the same way software teams merge code.
 
-## How It Works
+## Current Build Status
 
-Vit serializes your DaVinci Resolve timeline into **domain-split JSON files**:
+This repo currently supports:
+
+- `vit` CLI workflows on macOS
+- DaVinci Resolve integration through `resolve_plugin/`
+- Adobe Premiere Pro integration through `premiere_plugin/`
+- macOS-first plugin install commands: `vit install-resolve` and `vit install-premiere`
+
+Current constraints:
+
+- plugin installers expect either a source checkout of this repo or the one-line installer layout in `~/.vit/vit-src`
+- Premiere support is currently documented and wired as a macOS-first path
+- collaboration docs in [`docs/COLLABORATION.md`](docs/COLLABORATION.md) are still Resolve-centric
+
+## How Vit Works
+
+Vit versions **edit decisions**, not media files.
+
+Typical project output looks like this:
+
+```text
+my-video-project/
+├── .git/
+├── .vit/config.json
+├── timeline/
+│   ├── cuts.json
+│   ├── color.json
+│   ├── audio.json
+│   ├── effects.json
+│   ├── markers.json
+│   └── metadata.json
+└── assets/
+```
+
+These files are domain-split so different collaborators can often work without stepping on each other:
 
 | File | Contents | Typical Owner |
 |------|----------|---------------|
-| `cuts.json` | Clip placements, in/out points, transforms | Editor |
+| `cuts.json` | Clip placements, in/out points, transforms, speed | Editor |
 | `color.json` | Color grading per clip | Colorist |
 | `audio.json` | Levels, panning | Sound Designer |
 | `effects.json` | Effects, transitions | Editor / VFX |
 | `markers.json` | Markers, notes | Anyone |
 | `metadata.json` | Frame rate, resolution, track counts | Rarely changed |
 
-Different roles edit different files, so Git merges them without conflicts. When cross-domain issues arise (e.g., a deleted clip still referenced in `color.json`), an AI-powered semantic merge resolves them.
+When branches touch overlapping meaning across domains, Vit can run validation and optional AI-assisted merge flows.
 
-## Installation
+## Requirements
 
-**Requirements:** Python 3.8+, Git, DaVinci Resolve (optional, for Resolve integration)
+- Python 3.8+
+- Git
+- macOS for the current installer flow
+- DaVinci Resolve if you want the Resolve panel
+- Adobe Premiere Pro if you want the Premiere extension
 
-### One-Line Install (macOS/Linux)
+## Install Options
+
+### One-line install
+
+For the fastest setup on macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LucasHJin/vit/main/install.sh | bash
 ```
 
-### Manual Install
+That installer keeps a source checkout in `~/.vit/vit-src`, installs the Python package into `~/.vit/venv`, then attempts both plugin installs non-destructively.
+
+### Source checkout install
+
+If you are developing or modifying Vit itself, use an editable install from a local checkout:
 
 ```bash
 git clone https://github.com/LucasHJin/vit.git
 cd vit
-pip install .
-vit install-resolve   # symlink plugin scripts into DaVinci Resolve
+pip install -e .
 ```
 
-For the optional Qt-based GUI panel inside Resolve:
+If you want to run tests locally:
+
+```bash
+pip install -e ".[dev]"
+python -m pytest tests/
+```
+
+If you want the optional Qt Resolve panel dependencies:
 
 ```bash
 pip install ".[qt]"
 ```
 
-## Usage Guide (GUI — Primary Workflow)
+## DaVinci Resolve Install Guide
 
-The main way to use Vit is through the **panel inside DaVinci Resolve** (`Workspace → Scripts → Vit Panel`). You only need the terminal for the one-time project setup.
-
-### What you need before starting
-
-- **A shared GitHub repo** (or any Git remote) — this is how collaborators share timeline changes. Create an empty repo on GitHub first (no README, no license).
-- **Your footage shared separately** — Vit tracks edit decisions, not raw video files. Share footage the way you already do (shared drive, Dropbox, server). Collaborators relink in Resolve if paths differ.
-- **An initialized vit project** — run `vit init` once in Terminal to create the `.vit/` config and initial timeline snapshot. This produces the JSON metadata files (`cuts.json`, `color.json`, etc.) that Vit versions from that point on.
-
-> See [`docs/COLLABORATION.md`](docs/COLLABORATION.md) for the full step-by-step collaboration setup, including how to invite teammates and handle relinking footage.
-
----
-
-### Person who starts the project (once, in Terminal)
+### Install from a source checkout
 
 ```bash
-# 1. Create and enter the project folder
+git clone https://github.com/LucasHJin/vit.git
+cd vit
+pip install -e .
+vit install-resolve
+```
+
+What this does:
+
+- locates `resolve_plugin/` from the repo checkout or `~/.vit/vit-src`
+- symlinks the required scripts into Resolve's Scripts menu directory
+- saves the repo path to `~/.vit/package_path` so Resolve-side Python can import `vit`
+
+After install:
+
+1. Restart DaVinci Resolve.
+2. Open `Workspace > Scripts > Vit`.
+3. Point the panel at your Vit project folder if prompted.
+
+### Start a new Resolve-tracked project
+
+```bash
 vit init my-project
 cd my-project
-
-# 2. Connect to your shared GitHub repo
-vit collab setup   # paste your empty repo URL when prompted
+vit collab setup
 ```
 
-Open DaVinci Resolve, load your project and timeline, then open the Vit Panel (`Workspace → Scripts → Vit Panel`) and **Save Version** to create the first snapshot. Vit serializes the timeline to JSON and commits it. Send the `vit clone …` URL that Terminal prints to your collaborators.
+Then open Resolve, open the Vit panel, and use **Save Version** to create the first serialized snapshot.
 
----
+## Adobe Premiere Pro Install Guide
 
-### Collaborators joining (once, in Terminal)
+### Install from a source checkout
 
 ```bash
-# Clone the project
+git clone https://github.com/LucasHJin/vit.git
+cd vit
+pip install -e .
+vit install-premiere
+```
+
+What this does on macOS:
+
+- locates `premiere_plugin/` from the repo checkout or `~/.vit/vit-src`
+- symlinks the whole CEP extension into `~/Library/Application Support/Adobe/CEP/extensions/com.vit.premiere`
+- enables `PlayerDebugMode` for CSXS 9/10/11
+- saves the repo path to `~/.vit/package_path`
+
+After install:
+
+1. Restart Premiere Pro.
+2. Open `Window > Extensions > Vit`.
+3. Point the extension at your Vit project folder if prompted.
+
+### Start a new Premiere-tracked project
+
+```bash
+vit init --nle premiere my-project
+cd my-project
+vit collab setup
+```
+
+The bridge will create `.vit/config.json` with `"nle": "premiere"` so the project is tagged correctly from the start.
+
+## Collaboration Flow
+
+Vit still expects Git to be the system of record for collaboration.
+
+### Project owner
+
+```bash
+vit init my-project
+cd my-project
+vit collab setup
+```
+
+Then:
+
+1. Open the project in your NLE.
+2. Open the Vit panel/extension.
+3. Save the first version.
+4. Share the `vit clone ...` command printed by `vit collab setup`.
+
+### Collaborators
+
+```bash
 vit clone https://github.com/yourname/your-repo.git
 cd your-repo
-
-# Pull the latest timeline state
 vit checkout main
-```
-
-Open Resolve, run **Vit Panel → Switch Branch**, choose your footage folder, and relink any offline clips. Then create your own branch:
-
-```bash
 vit branch your-name
 ```
 
-From here on, everything happens in the panel.
+Then open the project in Resolve or Premiere, relink any offline media, and work from your own branch.
 
----
+Resolve-specific collaboration steps are still documented in [`docs/COLLABORATION.md`](docs/COLLABORATION.md).
 
-### Daily workflow (entirely in the Resolve panel)
+## CLI Quick Start
 
-1. **Pull** — fetch the latest changes from the team
-2. **Switch Branch** — restore the timeline to your branch
-3. Edit in Resolve as usual
-4. **Save Version** — serialize your timeline changes and commit
-5. **Push** — share your work
-
----
-
-### Merging work (lead / editor)
-
-In the panel:
-
-1. Pull to get everyone's latest commits
-2. Switch to `main` (or whichever branch you merge into)
-3. **Merge** → select the branch to bring in
-4. Review the diff summary the panel shows; the panel uses AI to recommend a strategy when a key is set, or falls back to change-count heuristics without one
-5. Push the merged result
-6. Tell teammates to Pull and Switch Branch to see the merged timeline
-
-For complex cross-domain conflicts (e.g., a clip deleted on one branch but color-graded on another), use `vit merge <branch>` in Terminal — it runs the full AI-assisted resolution flow.
-
----
-
-## Quick Start (CLI)
-
-The CLI mirrors everything the panel does, useful for scripting or when outside Resolve:
+The CLI is the stable cross-NLE surface in this repo.
 
 ```bash
-vit init                        # initialize project (required once)
-vit commit -m "rough cut done"  # save a version
-vit branch color-grade          # create a branch
-vit checkout color-grade        # switch to it
+vit init                        # initialize a Resolve-tracked project
+vit init --nle premiere promo   # initialize a Premiere-tracked project
+vit commit -m "rough cut done"
+vit branch color-grade
+vit checkout color-grade
 vit commit -m "first color pass"
 vit checkout main
-vit merge color-grade           # merge back
-vit diff                        # see what changed
-vit log                         # version history
+vit merge color-grade
+vit diff
+vit log
 ```
 
-## Commands
+Available commands in the current build:
 
-| Command | Description |
-|---------|-------------|
-| `vit init` | Initialize a new vit project |
-| `vit add` | Serialize timeline and stage changes |
-| `vit commit -m "msg"` | Stage + commit |
-| `vit branch <name>` | Create a new branch |
-| `vit checkout <name>` | Switch branches (restores timeline in Resolve) |
-| `vit merge <branch>` | Merge a branch (with AI conflict resolution) |
-| `vit diff` | Human-readable timeline diff |
-| `vit log` | Formatted version history |
-| `vit revert` | Undo the last commit |
-| `vit push` / `vit pull` | Sync with a remote |
-| `vit status` | Show project status |
+- `vit init`
+- `vit add`
+- `vit commit`
+- `vit branch`
+- `vit checkout`
+- `vit merge`
+- `vit diff`
+- `vit log`
+- `vit status`
+- `vit revert`
+- `vit push`
+- `vit pull`
+- `vit validate`
+- `vit clone`
+- `vit remote`
+- `vit collab setup`
+- `vit install-resolve`
+- `vit uninstall-resolve`
+- `vit install-premiere`
+- `vit uninstall-premiere`
 
-## Project Structure
+## Repository Layout
 
+```text
+vit/
+├── vit/               # core library and CLI
+├── resolve_plugin/    # DaVinci Resolve panel and script entry points
+├── premiere_plugin/   # Premiere CEP extension + Python bridge
+├── tests/             # test suite
+└── docs/              # reference docs
 ```
-vit/                      # Core library
-  cli.py                  # CLI entry point
-  core.py                 # Git operations wrapper
-  serializer.py           # Resolve timeline -> JSON
-  deserializer.py         # JSON -> Resolve timeline
-  ai_merge.py             # AI-powered conflict resolution (Gemini)
-  differ.py               # Human-readable diff formatting
-  validator.py            # Post-merge validation
-  models.py               # Data models
-  json_writer.py          # Domain-split JSON I/O
 
-resolve_plugin/           # DaVinci Resolve integration (primary UI)
-  vit_panel_launcher.py   # Panel backend: all git + serialize/deserialize logic
-  vit_panel_tkinter.py    # Tkinter panel UI (default)
-  vit_panel_qt.py         # Qt panel UI (optional, pip install ".[qt]")
-  vit_commit.py           # Script menu: commit
-  vit_branch.py           # Script menu: branch
-  vit_merge.py            # Script menu: merge
-  vit_status.py           # Script menu: status
-  vit_restore.py          # Script menu: restore timeline
+Key directories:
 
-tests/                    # Test suite
-docs/                     # Reference docs
-  COLLABORATION.md        # Step-by-step multi-user setup
-  JSON_SCHEMAS.md         # Full schema for all domain JSON files
-  RESOLVE_API_LIMITATIONS.md  # Known Resolve API constraints
-  AI_MERGE_DETAILS.md     # AI merge architecture and prompts
-```
+- `vit/`: git wrappers, serializer/deserializer, merge logic, validation, diffing
+- `resolve_plugin/`: Resolve launcher, panel UIs, and script-menu entry points
+- `premiere_plugin/`: CEP HTML/JS assets, ExtendScript, and `premiere_bridge.py`
 
 ## AI Features
 
-Vit uses the **Gemini API** (`gemini-2.5-flash`) to assist with video editing workflows that go beyond what plain Git can handle. Key uses:
+Vit uses the Gemini API for optional workflow assistance:
 
-- **Semantic merge resolution** — When a merge creates cross-domain conflicts (e.g., one branch deletes a clip while another color-grades it), the AI analyzes BASE/OURS/THEIRS states across all domain files and produces structured per-domain decisions with confidence levels
-- **Interactive conflict clarification** — For ambiguous merges (low-confidence decisions), the AI presents options to the user, then resolves the final JSON based on their choices
-- **Post-merge validation** — A rule-based validator catches orphaned references, overlapping clips, audio/video sync mismatches, and speed/duration inconsistencies after every merge; these issues feed into the AI prompt for smarter resolution
-- **Commit message suggestions** — `vit commit` can auto-generate a descriptive message from the timeline diff using video editing terminology (e.g., "Add B-roll on V2, trim interview end point")
-- **Log summaries** — `vit log --summary` produces a natural-language overview of recent commits for the team
-- **Branch comparison analysis** — The Resolve panel uses AI to compare two branches and recommend a merge strategy before you commit to it
-- **Commit classification** — Commits are auto-categorized as audio, video, or color changes (with a fast heuristic fallback when AI is unavailable)
+- semantic merge resolution for cross-domain conflicts
+- commit message suggestions
+- log summaries
+- branch comparison analysis
 
-Set `GEMINI_API_KEY` in your environment or project `.env` file to enable AI features. All AI features degrade gracefully — Vit works fully without an API key, you just lose the smart merge and suggestions.
+Set `GEMINI_API_KEY` in your shell or project `.env` file to enable those features. The CLI and UI degrade to non-AI behavior when the key is missing or an optional AI step fails.
 
 ## Testing
 
 ```bash
+pip install -e ".[dev]"
 python -m pytest tests/
+```
+
+For a quick non-pytest syntax pass:
+
+```bash
+python -m compileall vit tests resolve_plugin premiere_plugin/premiere_bridge.py
 ```
 
 ## License

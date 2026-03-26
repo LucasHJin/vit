@@ -27,18 +27,20 @@ Each collaborator works on a branch. Vit serializes the NLE timeline into domain
 - **AI-assisted semantic merging** — LLM resolves cross-domain conflicts (e.g., deleted clip still in color.json)
 - **Snapshot-based** — each commit = full timeline state
 - **No media storage, no database** — JSON in git only
-- **CLI-first** — Resolve plugin scripts serve as in-NLE UI
+- **CLI-first** — NLE plugins serve as in-NLE UI
 
 ---
 
 ## System Architecture
 
 ```
-Resolve Panel (primary)  → vit-core (Python) → Git (system binary)
-CLI (`vit` command)      → vit-core (Python) → Git (system binary)  [power users / fallback]
+Resolve Panel   → vit-core (Python) → Git (system binary)
+Premiere Panel  → vit-core (Python) → Git (system binary)
+CLI (`vit`)     → vit-core (Python) → Git (system binary)  [power users / fallback]
 ```
 
 - **Primary interface:** Resolve plugin panel (`vit_panel_launcher.py` + `vit_panel_tkinter.py`), accessed via Resolve's Scripts menu. This is what end users (editors, colorists) interact with.
+- **Premiere interface:** CEP extension (`premiere_plugin/`), accessed via Window > Extensions > Vit. Node.js spawns `premiere_bridge.py`; ExtendScript handles serialize/deserialize.
 - **vit-core:** serializer.py, deserializer.py, json_writer.py, core.py, ai_merge.py, differ.py, cli.py
 - **Resolve scripts dir:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit/`
 - **Fallback:** If Resolve API too limited → FCPXML + OpenTimelineIO; vit-core stays the same.
@@ -63,7 +65,8 @@ CLI (`vit` command)      → vit-core (Python) → Git (system binary)  [power u
 vit/
 ├── vit/           # cli.py, core.py, models.py, serializer.py, deserializer.py,
 │                   # json_writer.py, ai_merge.py, validator.py, differ.py
-├── resolve_plugin/  # vit_commit.py, vit_branch.py, vit_merge.py, vit_status.py, vit_restore.py
+├── resolve_plugin/   # vit_commit.py, vit_branch.py, vit_merge.py, vit_status.py, vit_restore.py
+├── premiere_plugin/  # CEP extension: HTML/CSS/JS, ExtendScript, Python bridge
 ├── tests/
 └── docs/           # Optional top-up: JSON_SCHEMAS.md, RESOLVE_API_LIMITATIONS.md, AI_MERGE_DETAILS.md
 ```
@@ -117,13 +120,15 @@ These are CLI commands for power users and scripting. Most users access equivale
 
 ---
 
-## Resolve Plugin Scripts
+## NLE Plugins
 
 **Primary user interface.** The panel (`vit_panel_launcher.py` + `vit_panel_tkinter.py`) is the main way users interact with Vit — launched from Resolve's Scripts menu. It exposes commit, branch, merge, push/pull, and status as GUI actions.
 
 `vit_panel_launcher.py` handles all backend actions (serialize, deserialize, git ops) and serves responses to the UI layer. `vit_panel_tkinter.py` is the Tkinter-based fallback UI.
 
 All scripts follow the pattern: add vit to path, get `resolve`/`project`/`timeline`, call into vit-core. Symlink the folder to Resolve's Edit scripts dir.
+
+The Premiere extension lives in `premiere_plugin/`. It uses a CEP panel for UI, ExtendScript for Premiere serialization/deserialization, and a Node.js layer that spawns `premiere_bridge.py` for git/core operations over stdin/stdout JSON IPC.
 
 ---
 
@@ -183,6 +188,6 @@ Serializer tests (mock Resolve), git wrapper tests, merge tests, validation test
 
 ## Scope Boundaries
 
-**In scope:** Resolve serializer/deserializer, full vit CLI, domain-split JSON, AI merge (Gemini), post-merge validation, human-readable diff, asset manifest, 5 Resolve plugin scripts.
+**In scope:** Resolve serializer/deserializer, Premiere CEP extension + bridge, full vit CLI, domain-split JSON, AI merge (Gemini), post-merge validation, human-readable diff, asset manifest, NLE plugin install paths.
 
-**Out of scope:** Web UI, hosted platform, database, media storage/sync, conflict GUI, locking, real-time collab, other NLEs (fallback only), LUT versioning, auth.
+**Out of scope:** Web UI, hosted platform, database, media storage/sync, conflict GUI, locking, real-time collab, NLEs beyond Resolve and Premiere, LUT versioning, auth.

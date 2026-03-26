@@ -1,5 +1,6 @@
 """Git wrapper — all git operations go through subprocess."""
 
+import json
 import os
 import subprocess
 from typing import List, Optional, Tuple
@@ -50,8 +51,10 @@ Desktop.ini
 Render/
 Deliver/
 
-# DaVinci Resolve project files (managed by Resolve, not vit)
+# NLE project files (managed by the NLE, not vit)
 *.drp
+*.prproj
+*.prpref
 
 # Environment / secrets
 .env
@@ -63,17 +66,24 @@ __pycache__/
 """
 
 
-def git_init(project_dir: str) -> None:
+def git_init(project_dir: str, nle: str = "resolve") -> None:
     """Initialize a new git repo and create .vit/ config."""
     os.makedirs(project_dir, exist_ok=True)
-    _run(["init"], cwd=project_dir)
+    init_result = subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if init_result.returncode != 0:
+        _run(["init"], cwd=project_dir)
+        _run(["branch", "-M", "main"], cwd=project_dir)
 
     # Create .vit config directory
     vit_dir = os.path.join(project_dir, ".vit")
     os.makedirs(vit_dir, exist_ok=True)
 
-    import json
-    config = {"version": "0.1.0", "nle": "resolve"}
+    config = {"version": "0.1.0", "nle": nle}
     config_path = os.path.join(vit_dir, "config.json")
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2, sort_keys=True)
@@ -187,8 +197,11 @@ def git_pull(project_dir: str, remote: str = "origin", branch: Optional[str] = N
 
 def git_current_branch(project_dir: str) -> str:
     """Get current branch name."""
-    result = _run(["rev-parse", "--abbrev-ref", "HEAD"], cwd=project_dir)
-    return result.stdout.strip()
+    result = _run(["symbolic-ref", "--short", "HEAD"], cwd=project_dir, check=False)
+    branch = result.stdout.strip()
+    if result.returncode == 0 and branch:
+        return branch
+    return git_default_branch(project_dir)
 
 
 def git_list_branches(project_dir: str) -> List[str]:
@@ -255,6 +268,16 @@ def find_project_root(start_dir: Optional[str] = None) -> Optional[str]:
         current = parent
 
 
+def read_nle(project_dir: str) -> str:
+    """Read the configured NLE type. Defaults to Resolve for older projects."""
+    config_path = os.path.join(project_dir, ".vit", "config.json")
+    try:
+        with open(config_path) as f:
+            return json.load(f).get("nle", "resolve")
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return "resolve"
+
+
 def git_remote_add(project_dir: str, name: str, url: str) -> None:
     """Add a remote."""
     _run(["remote", "add", name, url], cwd=project_dir)
@@ -276,7 +299,7 @@ def git_remote_remove(project_dir: str, name: str) -> None:
     _run(["remote", "remove", name], cwd=project_dir)
 
 
-def git_clone(url: str, dest_dir: str) -> None:
+def git_clone(url: str, dest_dir: str, nle: str = "resolve") -> None:
     """Clone a remote vit repo."""
     result = subprocess.run(
         ["git", "clone", url, dest_dir],
@@ -288,14 +311,27 @@ def git_clone(url: str, dest_dir: str) -> None:
         raise GitError(f"git clone failed: {detail}")
 
     # Ensure .vit/config.json exists so the cloned dir is recognized as a vit project
-    import json
     vit_dir = os.path.join(dest_dir, ".vit")
     config_path = os.path.join(vit_dir, "config.json")
     if not os.path.exists(config_path):
         os.makedirs(vit_dir, exist_ok=True)
-        config = {"version": "0.1.0", "nle": "resolve"}
+        config = {"version": "0.1.0", "nle": nle}
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2, sort_keys=True)
+
+
+def git_default_branch(project_dir: str) -> str:
+    """Best-effort default branch name for a local repo."""
+    for candidate in ("main", "master"):
+        result = _run(["rev-parse", "--verify", candidate], cwd=project_dir, check=False)
+        if result.returncode == 0:
+            return candidate
+
+    current = _run(["rev-parse", "--abbrev-ref", "HEAD"], cwd=project_dir, check=False)
+    branch = current.stdout.strip()
+    if current.returncode == 0 and branch and branch != "HEAD":
+        return branch
+    return "main"
 
 
 def git_config_get(project_dir: str, key: str) -> Optional[str]:

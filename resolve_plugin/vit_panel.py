@@ -42,6 +42,7 @@ try:
     main()
 except Exception:
     # Fallback to tkinter panel
+    sys.stderr.write("[vit] Qt panel unavailable, falling back to Tkinter.\n")
     try:
         from resolve_plugin.vit_panel_tkinter import main as tkinter_main
         tkinter_main()

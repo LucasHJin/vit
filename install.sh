@@ -106,6 +106,9 @@ else
     }
 fi
 
+echo "  Installing Adobe Premiere Pro extension..."
+"$VIT_BIN/vit" install-premiere 2>/dev/null || true
+
 # ── Done ──────────────────────────────────────
 
 echo ""
@@ -113,12 +116,14 @@ echo "  Vit installed successfully!"
 echo ""
 echo "  Next steps:"
 echo "    1. Restart your terminal (or run: source ~/.zshrc)"
-echo "    2. Create and open your project in DaVinci Resolve"
+echo "    2. Create and open your project in DaVinci Resolve or Adobe Premiere Pro"
 echo "    3. Run: vit init your-project-name (in your terminal)"
+echo "       For Premiere projects, add: vit init --nle premiere your-project-name"
 echo "       (creates a vit tracking folder anywhere on disk — location doesn't matter)"
 echo "    4. Run: vit collab setup"
 echo "       (connect to a GitHub repo so your team can share the project)"
 echo "    5. In Resolve: Workspace > Scripts > Vit"
+echo "       In Premiere: Window > Extensions > Vit"
 echo "       (first launch will ask you to select the vit folder you just created)"
 echo "    6. The panel handles everything from there (save, branch, merge, push, pull)"
 echo ""

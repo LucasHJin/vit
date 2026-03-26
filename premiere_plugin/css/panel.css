@@ -1,0 +1,311 @@
+/* panel.css — Dark theme matching Resolve Qt panel design */
+
+/* -- Reset & base -------------------------------------------------------- */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #1C1C1C;
+    color: #D9D9D9;
+    font-family: "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-x: hidden;
+    padding: 12px;
+}
+
+/* -- Scrollbar ----------------------------------------------------------- */
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #1C1C1C;
+}
+::-webkit-scrollbar-thumb {
+    background: #464646;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* -- Header -------------------------------------------------------------- */
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #464646;
+}
+
+.panel-title {
+    font-size: 16px;
+    font-weight: 400;
+    color: #D9D9D9;
+    letter-spacing: 0.5px;
+}
+
+#branch-label {
+    font-size: 12px;
+    color: #FFB463;
+    background-color: rgba(255, 180, 99, 0.15);
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+/* -- Status -------------------------------------------------------------- */
+
+#status-text {
+    font-size: 11px;
+    color: #4A4A4A;
+    min-height: 16px;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#status-text:empty {
+    display: none;
+}
+
+/* -- Sections (collapsible) ---------------------------------------------- */
+
+.section {
+    margin-bottom: 12px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 6px 0;
+    user-select: none;
+}
+
+.section-header:hover {
+    opacity: 0.8;
+}
+
+.section-chevron {
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    transition: transform 0.15s ease;
+    transform: rotate(90deg);
+    color: #4A4A4A;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #4A4A4A;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.section-content {
+    padding: 4px 0;
+}
+
+/* -- Inputs & buttons ---------------------------------------------------- */
+
+input[type="text"],
+select {
+    background-color: #2C2C2C;
+    color: #D9D9D9;
+    border: 1px solid #464646;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+}
+
+input[type="text"]:focus,
+select:focus {
+    border-color: #FFB463;
+}
+
+input[type="text"]::placeholder {
+    color: #4A4A4A;
+}
+
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%234A4A4A' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 24px;
+    cursor: pointer;
+}
+
+button {
+    background-color: #FFB463;
+    color: #000000;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+button:hover {
+    background-color: #FFCA8A;
+}
+
+button:active {
+    background-color: #E89F4A;
+}
+
+button:disabled {
+    background-color: #464646;
+    color: #4A4A4A;
+    cursor: not-allowed;
+}
+
+button.secondary {
+    background-color: #2C2C2C;
+    color: #D9D9D9;
+    border: 1px solid #464646;
+}
+
+button.secondary:hover {
+    background-color: #3C3C3C;
+}
+
+button.secondary:disabled {
+    background-color: #2C2C2C;
+    color: #4A4A4A;
+}
+
+/* -- Actions section ----------------------------------------------------- */
+
+.action-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+}
+
+.action-row input[type="text"],
+.action-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+.action-row button {
+    flex-shrink: 0;
+    min-width: 64px;
+}
+
+.btn-row {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.btn-row button {
+    flex: 1;
+    max-width: 80px;
+}
+
+/* -- Changes section ----------------------------------------------------- */
+
+.commit-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.commit-row input[type="text"] {
+    flex: 1;
+}
+
+.commit-buttons {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.commit-buttons button {
+    flex: 1;
+}
+
+.change-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    gap: 8px;
+}
+
+.change-icon {
+    font-size: 12px;
+    color: #4A4A4A;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.change-name {
+    font-size: 12px;
+    color: #4A4A4A;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.changes-empty {
+    font-size: 11px;
+    color: #4A4A4A;
+    padding: 4px 0;
+    font-style: italic;
+}
+
+/* -- History section ----------------------------------------------------- */
+
+.graph-container {
+    overflow-y: auto;
+    max-height: 300px;
+    background-color: #1C1C1C;
+    border: 1px solid #464646;
+    border-radius: 4px;
+}
+
+#graph-canvas {
+    display: block;
+}
+
+/* -- Log area ------------------------------------------------------------ */
+
+#log-area {
+    display: none; /* Hidden by default, toggle with dev tools */
+    background-color: #2C2C2C;
+    color: #4A4A4A;
+    font-size: 10px;
+    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    padding: 8px;
+    border-radius: 4px;
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 12px;
+}

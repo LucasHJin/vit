@@ -11,7 +11,12 @@ setup(
         "rich",
         "PySide6",
     ],
-    extras_require={},
+    extras_require={
+        "dev": [
+            "pytest",
+        ],
+        "qt": [],
+    },
     entry_points={
         "console_scripts": [
             "vit=vit.cli:main",
