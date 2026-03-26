@@ -439,7 +439,15 @@ def cmd_push(args):
         if output.strip():
             print(output)
     except GitError as e:
-        print(f"  Error: {e}")
+        err = str(e)
+        print(f"  Error: {err}")
+        if _is_github_auth_error(err):
+            print()
+            print("  GitHub auth failed. SSH is the recommended fix:")
+            print("    1. ssh-keygen -t ed25519 -C \"your@email.com\"")
+            print("    2. Add ~/.ssh/id_ed25519.pub at https://github.com/settings/ssh/new")
+            print("    3. git remote set-url origin git@github.com:user/repo.git")
+            print("  Or re-run 'vit collab setup' for a guided walkthrough.")
 
 
 def cmd_pull(args):
@@ -587,12 +595,71 @@ def cmd_remote(args):
         print(f"  Removed remote '{args.name}'")
 
 
+def _is_github_auth_error(error_str: str) -> bool:
+    """Return True if the error looks like a GitHub HTTPS credential rejection."""
+    markers = [
+        "invalid username or token",
+        "password authentication is not supported",
+        "authentication failed",
+        "could not read username",
+        "could not read password",
+        "403",
+        "remote: forbidden",
+    ]
+    lower = error_str.lower()
+    return any(m in lower for m in markers)
+
+
+def _https_to_ssh_url(url: str) -> str:
+    """Convert https://github.com/user/repo.git → git@github.com:user/repo.git"""
+    import re
+    match = re.match(r"https://github\.com/([^/]+)/(.+)", url)
+    if match:
+        return f"git@github.com:{match.group(1)}/{match.group(2)}"
+    return url
+
+
+def _print_ssh_instructions(url: str, remote_name: str) -> None:
+    """Print step-by-step SSH setup guidance."""
+    ssh_url = _https_to_ssh_url(url)
+    print()
+    print("  GitHub no longer accepts passwords over HTTPS.")
+    print("  SSH is the recommended way to authenticate — set it up once and it")
+    print("  works for every GitHub repo on this machine, with no expiry.")
+    print()
+    print("  Step 1 — Generate an SSH key (skip if you already have one):")
+    print('    ssh-keygen -t ed25519 -C "your@email.com"')
+    print("    (press Enter through all prompts to accept defaults)")
+    print()
+    print("  Step 2 — Add your public key to GitHub:")
+    print("    cat ~/.ssh/id_ed25519.pub")
+    print("    Copy the output, then go to:")
+    print("    https://github.com/settings/ssh/new")
+    print("    Paste it in and save.")
+    print()
+    print("  Step 3 — Use the SSH remote URL instead of HTTPS.")
+    if ssh_url != url:
+        print(f"  Your URL:     {url}")
+        print(f"  SSH version:  {ssh_url}")
+        print()
+        print(f"  Update it with:")
+        print(f"    git remote set-url {remote_name} {ssh_url}")
+    else:
+        print("  Use the SSH URL from GitHub: git@github.com:username/repo.git")
+        print("  (On the repo page, click Code → SSH to copy it)")
+    print()
+    print("  Then re-run: vit collab setup")
+
+
 def cmd_collab_setup(args):
     """Interactive wizard to set up collaboration with a remote repository."""
     project_dir = _require_project()
 
     print("  Vit Collaboration Setup")
     print("  ─────────────────────────────────────")
+    print("  Tip: use the SSH URL from GitHub (git@github.com:user/repo.git),")
+    print("  not the HTTPS URL. SSH works without entering credentials every time.")
+    print()
 
     # Check existing remotes
     remotes = git_remote_list(project_dir)
@@ -602,10 +669,22 @@ def cmd_collab_setup(args):
             print(f"    {r['name']}  {r['url']}")
         print()
 
-    url = input("  Remote URL (e.g. https://github.com/you/film.git): ").strip()
+    url = input("  Remote URL (e.g. git@github.com:you/film.git): ").strip()
     if not url:
         print("  Cancelled.")
         return
+
+    if url.startswith("https://"):
+        ssh_url = _https_to_ssh_url(url)
+        print()
+        print("  Note: you entered an HTTPS URL. SSH is recommended to avoid auth issues.")
+        if ssh_url != url:
+            print(f"  SSH equivalent: {ssh_url}")
+            choice = input("  Switch to SSH URL? [Y/n]: ").strip().lower()
+            if choice != "n":
+                url = ssh_url
+                print(f"  Using SSH URL: {url}")
+        print()
 
     remote_name = "origin"
     if remotes:
@@ -628,8 +707,12 @@ def cmd_collab_setup(args):
         if output.strip():
             print(output)
     except GitError as e:
-        print(f"  Push failed: {e}")
-        print("  You may need to authenticate or create the remote repo first.")
+        err = str(e)
+        print(f"  Push failed: {err}")
+        if _is_github_auth_error(err):
+            _print_ssh_instructions(url, remote_name)
+        else:
+            print("  Make sure the remote repository exists and is empty, then try again.")
         return
 
     print()
