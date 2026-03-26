@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 from . import __version__
@@ -18,6 +19,7 @@ from .core import (
     git_config_get,
     git_config_set,
     git_current_branch,
+    git_default_branch,
     git_diff,
     git_init,
     git_list_branches,
@@ -50,6 +52,23 @@ def _require_project() -> str:
     return root
 
 
+def _warn_optional(feature: str, exc: Exception) -> None:
+    """Emit a concise warning for optional features that fail open."""
+    detail = str(exc).strip()
+    if detail:
+        print(f"  Warning: {feature} unavailable: {detail}", file=sys.stderr)
+    else:
+        print(f"  Warning: {feature} unavailable.", file=sys.stderr)
+
+
+def _default_clone_dest(url: str) -> str:
+    """Derive a local directory name from a git remote URL."""
+    name = os.path.basename(url.rstrip("/"))
+    if name.endswith(".git"):
+        name = name[:-4]
+    return name
+
+
 def cmd_init(args):
     """Initialize a new vit project."""
     project_dir = args.path or os.getcwd()
@@ -58,7 +77,7 @@ def cmd_init(args):
         print(f"Error: '{project_dir}' is already a vit project.")
         sys.exit(1)
 
-    git_init(project_dir)
+    git_init(project_dir, nle=args.nle)
 
     # Write empty domain files for initial commit
     from .models import Timeline
@@ -124,8 +143,8 @@ def cmd_commit(args):
                     else:
                         # User typed a custom message
                         message = response
-        except Exception:
-            pass  # Fall through to default
+        except Exception as exc:
+            _warn_optional("AI commit suggestion", exc)
         if not message:
             message = "vit: save version"
 
@@ -213,8 +232,8 @@ def cmd_merge(args):
                     if response in ("n", "no"):
                         print("  Merge cancelled.")
                         return
-        except Exception:
-            pass  # Skip analysis on any failure
+        except Exception as exc:
+            _warn_optional("AI merge analysis", exc)
 
     print(f"  Merging '{branch}' into '{current}'...")
 
@@ -399,7 +418,8 @@ def cmd_log(args):
                     print(f"\n  AI Summary: {summary}")
                 else:
                     print("\n  AI summary unavailable (check GEMINI_API_KEY).")
-            except Exception:
+            except Exception as exc:
+                _warn_optional("AI log summary", exc)
                 print("\n  AI summary unavailable.")
     else:
         print("  No commits yet.")
@@ -503,24 +523,52 @@ def _resolve_menu_name(script_name: str) -> str:
     return _RESOLVE_MENU_NAMES.get(script_name, script_name)
 
 
+PREMIERE_EXTENSION_ID = "com.vit.premiere"
+if sys.platform == "darwin":
+    PREMIERE_CEP_DIR = os.path.expanduser("~/Library/Application Support/Adobe/CEP/extensions")
+else:
+    PREMIERE_CEP_DIR = ""
+
+
+def _find_plugin_dir(plugin_name: str):
+    """Locate a top-level plugin directory from the repo or installer checkout."""
+    package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    plugin_dir = os.path.join(package_dir, plugin_name)
+    if os.path.isdir(plugin_dir):
+        return package_dir, plugin_dir
+
+    vit_src = os.path.join(os.path.expanduser("~"), ".vit", "vit-src")
+    fallback_dir = os.path.join(vit_src, plugin_name)
+    if os.path.isdir(fallback_dir):
+        return vit_src, fallback_dir
+
+    return package_dir, plugin_dir
+
+
+def _save_package_path(package_dir: str) -> None:
+    """Save the repo root so NLE plugins can find the vit package."""
+    vit_user_dir = os.path.expanduser("~/.vit")
+    os.makedirs(vit_user_dir, exist_ok=True)
+    with open(os.path.join(vit_user_dir, "package_path"), "w") as f:
+        f.write(package_dir)
+    print(f"  Saved package path: {package_dir}")
+
+
+def _print_missing_plugin_dir(plugin_name: str, package_dir: str, plugin_dir: str) -> None:
+    """Explain the supported install layouts for plugin assets."""
+    print(f"  Error: {plugin_name}/ directory not found.")
+    print(f"  Checked: {os.path.join(package_dir, plugin_name)}")
+    print(f"  Checked: {plugin_dir}")
+    print("  Install vit from a source checkout, or use the curl installer so ~/.vit/vit-src is available.")
+
+
 def cmd_install_resolve(args):
     """Install Resolve plugin scripts via symlink."""
     # Find the resolve_plugin directory — check multiple locations
-    package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    plugin_dir = os.path.join(package_dir, "resolve_plugin")
+    package_dir, plugin_dir = _find_plugin_dir("resolve_plugin")
 
     if not os.path.isdir(plugin_dir):
-        # Fallback: check ~/.vit/vit-src/ (curl installer location)
-        # Also update package_dir so package_path gets the correct value
-        vit_src = os.path.join(os.path.expanduser("~"), ".vit", "vit-src")
-        if os.path.isdir(os.path.join(vit_src, "resolve_plugin")):
-            package_dir = vit_src
-            plugin_dir = os.path.join(package_dir, "resolve_plugin")
-
-    if not os.path.isdir(plugin_dir):
-        print(f"  Error: resolve_plugin/ directory not found.")
-        print(f"  Checked: {os.path.join(package_dir, 'resolve_plugin')}")
-        print(f"  Checked: {plugin_dir}")
+        _print_missing_plugin_dir("resolve_plugin", package_dir, plugin_dir)
         sys.exit(1)
 
     os.makedirs(RESOLVE_SCRIPTS_DIR, exist_ok=True)
@@ -544,22 +592,49 @@ def cmd_install_resolve(args):
             os.symlink(source, dest)
         print(f"  Linked: {menu_name} → {source}")
 
-    # Save the repo root path so Resolve scripts can find the vit package
-    # even if __file__ or symlink resolution fails in Resolve's Python
-    vit_user_dir = os.path.expanduser("~/.vit")
-    os.makedirs(vit_user_dir, exist_ok=True)
-    with open(os.path.join(vit_user_dir, "package_path"), "w") as f:
-        f.write(package_dir)
-    print(f"  Saved package path: {package_dir}")
+    _save_package_path(package_dir)
 
     print(f"\n  Installed {len(RESOLVE_SCRIPT_NAMES)} script(s) to Resolve.")
     print("  Restart Resolve, then run Workspace > Scripts > Vit for the unified panel.")
 
 
+def cmd_install_premiere(args):
+    """Install the Premiere CEP extension on macOS."""
+    if sys.platform != "darwin":
+        print("  Premiere install is currently supported on macOS only.")
+        sys.exit(1)
+
+    package_dir, plugin_dir = _find_plugin_dir("premiere_plugin")
+    if not os.path.isdir(plugin_dir):
+        _print_missing_plugin_dir("premiere_plugin", package_dir, plugin_dir)
+        sys.exit(1)
+
+    os.makedirs(PREMIERE_CEP_DIR, exist_ok=True)
+    dest = os.path.join(PREMIERE_CEP_DIR, PREMIERE_EXTENSION_ID)
+    if os.path.islink(dest) or os.path.exists(dest):
+        os.remove(dest)
+
+    os.symlink(plugin_dir, dest)
+    print(f"  Linked: {PREMIERE_EXTENSION_ID} → {plugin_dir}")
+
+    for version in range(9, 12):
+        subprocess.run(
+            ["defaults", "write", f"com.adobe.CSXS.{version}", "PlayerDebugMode", "1"],
+            capture_output=True,
+            text=True,
+        )
+    print("  Enabled PlayerDebugMode for CSXS 9/10/11.")
+
+    _save_package_path(package_dir)
+
+    print("\n  Installed Premiere extension.")
+    print("  Restart Premiere, then run Window > Extensions > Vit.")
+
+
 def cmd_clone(args):
     """Clone a remote vit repo to a local directory."""
     url = args.url
-    dest = args.directory or os.path.basename(url.rstrip("/").rstrip(".git"))
+    dest = args.directory or _default_clone_dest(url)
     if os.path.exists(dest):
         print(f"  Error: '{dest}' already exists.")
         sys.exit(1)
@@ -569,9 +644,10 @@ def cmd_clone(args):
     except GitError as e:
         print(f"  Error: {e}")
         sys.exit(1)
+    default_branch = git_default_branch(dest)
     print(f"  Cloned into '{dest}'")
-    print(f"  Note: Media files are not included. Open the project in Resolve and relink any offline clips.")
-    print(f"  Run 'vit checkout main' inside '{dest}' to restore the latest timeline.")
+    print(f"  Note: Media files are not included. Open the project in your NLE and relink any offline clips.")
+    print(f"  Run 'vit checkout {default_branch}' inside '{dest}' to restore the latest timeline.")
 
 
 def cmd_remote(args):
@@ -722,7 +798,7 @@ def cmd_collab_setup(args):
     print()
     print("  Each collaborator should:")
     print("    1. Run: vit clone <url>")
-    print("    2. Open the project folder in DaVinci Resolve")
+    print("    2. Open the project folder in your NLE (Resolve or Premiere)")
     print("    3. Relink any offline media files")
     print("    4. Create their own branch: vit branch <name>")
 
@@ -755,6 +831,20 @@ def cmd_uninstall_resolve(args):
         print("  No vit scripts found in Resolve.")
 
 
+def cmd_uninstall_premiere(args):
+    """Remove the Premiere CEP extension on macOS."""
+    if sys.platform != "darwin":
+        print("  Premiere uninstall is currently supported on macOS only.")
+        return
+
+    dest = os.path.join(PREMIERE_CEP_DIR, PREMIERE_EXTENSION_ID)
+    if os.path.islink(dest) or os.path.exists(dest):
+        os.remove(dest)
+        print(f"  Removed: {PREMIERE_EXTENSION_ID}")
+    else:
+        print("  No vit Premiere extension found.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="vit",
@@ -766,6 +856,8 @@ def main():
 
     # init
     p_init = subparsers.add_parser("init", help="Initialize a new vit project")
+    p_init.add_argument("--nle", choices=["resolve", "premiere"], default="resolve",
+                        help="Target NLE (default: resolve)")
     p_init.add_argument("path", nargs="?", help="Project directory (default: current)")
     p_init.set_defaults(func=cmd_init)
 
@@ -864,6 +956,14 @@ def main():
     # uninstall-resolve
     p_uninstall = subparsers.add_parser("uninstall-resolve", help="Remove scripts from DaVinci Resolve")
     p_uninstall.set_defaults(func=cmd_uninstall_resolve)
+
+    # install-premiere
+    p_install_pr = subparsers.add_parser("install-premiere", help="Install Vit extension for Adobe Premiere Pro")
+    p_install_pr.set_defaults(func=cmd_install_premiere)
+
+    # uninstall-premiere
+    p_uninstall_pr = subparsers.add_parser("uninstall-premiere", help="Remove Vit extension from Adobe Premiere Pro")
+    p_uninstall_pr.set_defaults(func=cmd_uninstall_premiere)
 
     args = parser.parse_args()
 

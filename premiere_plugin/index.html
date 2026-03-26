@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vit</title>
+    <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="panel-header">
+        <span class="panel-title">vit</span>
+        <span id="branch-label">—</span>
+    </div>
+
+    <!-- Status -->
+    <div id="status-text"></div>
+
+    <!-- Actions Section -->
+    <div class="section">
+        <div class="section-header" id="actions-header">
+            <span class="section-chevron" id="actions-chevron">&#9656;</span>
+            <span class="section-title">Actions</span>
+        </div>
+        <div class="section-content" id="actions-content">
+
+            <!-- New Branch -->
+            <div class="action-row">
+                <input type="text" id="new-branch-input" placeholder="new branch name">
+                <button id="create-branch-btn">Create</button>
+            </div>
+
+            <!-- Switch Branch -->
+            <div class="action-row">
+                <select id="switch-branch-select"></select>
+                <button id="switch-branch-btn">Switch</button>
+            </div>
+
+            <!-- Merge Branch -->
+            <div class="action-row">
+                <select id="merge-branch-select"></select>
+                <button id="merge-branch-btn">Merge</button>
+            </div>
+
+            <!-- Push / Pull / Status -->
+            <div class="btn-row">
+                <button id="push-btn" class="secondary">Push</button>
+                <button id="pull-btn" class="secondary">Pull</button>
+                <button id="status-btn" class="secondary">Status</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Changes Section -->
+    <div class="section">
+        <div class="section-header" id="changes-header">
+            <span class="section-chevron" id="changes-chevron">&#9656;</span>
+            <span class="section-title">Changes</span>
+        </div>
+        <div class="section-content" id="changes-content">
+
+            <!-- Commit message -->
+            <div class="commit-row">
+                <input type="text" id="commit-message" placeholder="commit message">
+            </div>
+
+            <!-- Commit / Refresh buttons -->
+            <div class="commit-buttons">
+                <button id="commit-btn">Commit</button>
+                <button id="refresh-btn" class="secondary">Refresh</button>
+            </div>
+
+            <!-- Change list -->
+            <div id="changes-list">
+                <div class="changes-empty">No changes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Section -->
+    <div class="section">
+        <div class="section-header" id="history-header">
+            <span class="section-chevron" id="history-chevron">&#9656;</span>
+            <span class="section-title">History</span>
+        </div>
+        <div class="section-content" id="history-content">
+            <div class="graph-container">
+                <canvas id="graph-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug log (hidden by default) -->
+    <pre id="log-area"></pre>
+
+    <!-- CSInterface library (provided by CEP runtime) -->
+    <script src="CSInterface.js"></script>
+
+    <!-- Plugin scripts -->
+    <script src="js/ipc.js"></script>
+    <script src="js/file_writer.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/main.js"></script>
+
+</body>
+</html>

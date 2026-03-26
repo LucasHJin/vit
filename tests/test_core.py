@@ -14,16 +14,19 @@ from vit.core import (
     git_checkout,
     git_commit,
     git_current_branch,
+    git_default_branch,
     git_diff,
     git_init,
     git_list_branches,
     git_log,
     git_merge,
     git_merge_base,
+    git_clone,
     git_revert,
     git_show_file,
     git_status,
     is_git_repo,
+    read_nle,
 )
 from vit.json_writer import _write_json
 
@@ -55,6 +58,28 @@ def test_init_creates_structure(project_dir):
     assert os.path.isdir(os.path.join(project_dir, "timeline"))
     assert os.path.isdir(os.path.join(project_dir, "assets"))
     assert os.path.isfile(os.path.join(project_dir, ".vit", "config.json"))
+    assert git_current_branch(project_dir) == "main"
+
+
+def test_init_with_nle_premiere():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        git_init(tmpdir, nle="premiere")
+        with open(os.path.join(tmpdir, ".vit", "config.json")) as f:
+            config = json.load(f)
+        assert config["nle"] == "premiere"
+
+
+def test_read_nle_defaults_to_resolve_for_missing_config():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        assert read_nle(tmpdir) == "resolve"
+
+
+def test_gitignore_contains_both_nle_patterns(project_dir):
+    with open(os.path.join(project_dir, ".gitignore")) as f:
+        gitignore = f.read()
+    assert "*.drp" in gitignore
+    assert "*.prproj" in gitignore
+    assert "*.prpref" in gitignore
 
 
 def test_is_git_repo(project_dir):
@@ -168,6 +193,10 @@ def test_find_project_root(project_dir):
     assert found == project_dir
 
 
+def test_read_nle_returns_config_value(project_dir):
+    assert read_nle(project_dir) == "resolve"
+
+
 def test_revert(project_dir):
     """git_revert should undo the last commit."""
     _write_cuts(project_dir, [{"id": "item_001", "name": "Before"}])
@@ -182,3 +211,30 @@ def test_revert(project_dir):
 
     log = git_log(project_dir)
     assert "Revert" in log
+
+
+def test_git_clone_writes_requested_nle_when_config_missing(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dest_dir = os.path.join(tmpdir, "clone")
+
+        def fake_run(args, capture_output, text):
+            os.makedirs(dest_dir, exist_ok=True)
+
+            class Result:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return Result()
+
+        monkeypatch.setattr("vit.core.subprocess.run", fake_run)
+
+        git_clone("https://example.com/repo.git", dest_dir, nle="premiere")
+
+        with open(os.path.join(dest_dir, ".vit", "config.json")) as f:
+            config = json.load(f)
+        assert config["nle"] == "premiere"
+
+
+def test_git_default_branch_prefers_existing_main(project_dir):
+    assert git_default_branch(project_dir) == "main"
