@@ -477,12 +477,12 @@ def cmd_validate(args):
 
 if sys.platform == "win32":
     RESOLVE_SCRIPTS_DIR = os.path.join(
-        os.environ.get("APPDATA", ""),
+        os.environ.get("PROGRAMDATA", ""),
         "Blackmagic Design",
         "DaVinci Resolve",
         "Fusion",
         "Scripts",
-        "Edit",
+        "Utility",
     )
 elif sys.platform == "darwin":
     RESOLVE_SCRIPTS_DIR = os.path.expanduser(
