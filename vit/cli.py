@@ -476,10 +476,21 @@ def cmd_validate(args):
 
 
 if sys.platform == "win32":
+    # Resolve only scans %PROGRAMDATA% (all users) and %APPDATA%\...\Support
+    # (per user) on Windows — the per-user path requires the "Support" segment.
     RESOLVE_SCRIPTS_DIR = os.path.join(
+        os.environ.get("PROGRAMDATA", r"C:\ProgramData"),
+        "Blackmagic Design",
+        "DaVinci Resolve",
+        "Fusion",
+        "Scripts",
+        "Edit",
+    )
+    RESOLVE_SCRIPTS_DIR_FALLBACK = os.path.join(
         os.environ.get("APPDATA", ""),
         "Blackmagic Design",
         "DaVinci Resolve",
+        "Support",
         "Fusion",
         "Scripts",
         "Edit",
@@ -488,10 +499,12 @@ elif sys.platform == "darwin":
     RESOLVE_SCRIPTS_DIR = os.path.expanduser(
         "~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Edit"
     )
+    RESOLVE_SCRIPTS_DIR_FALLBACK = None
 else:
     RESOLVE_SCRIPTS_DIR = os.path.expanduser(
         "~/.local/share/DaVinciResolve/Fusion/Scripts/Edit"
     )
+    RESOLVE_SCRIPTS_DIR_FALLBACK = None
 
 RESOLVE_SCRIPT_NAMES = [
     "vit_panel.py",
@@ -505,6 +518,25 @@ _RESOLVE_MENU_NAMES = {
 
 def _resolve_menu_name(script_name: str) -> str:
     return _RESOLVE_MENU_NAMES.get(script_name, script_name)
+
+
+def _writable_scripts_dir():
+    """Create and return the Resolve scripts dir, falling back to the
+    per-user location on Windows when ProgramData is not writable."""
+    try:
+        os.makedirs(RESOLVE_SCRIPTS_DIR, exist_ok=True)
+        # makedirs succeeds on an existing dir even without write access
+        probe = os.path.join(RESOLVE_SCRIPTS_DIR, ".vit-write-probe")
+        with open(probe, "w"):
+            pass
+        os.remove(probe)
+        return RESOLVE_SCRIPTS_DIR
+    except OSError:
+        if RESOLVE_SCRIPTS_DIR_FALLBACK is None:
+            raise
+        print("  Note: no write access to ProgramData — using per-user scripts folder.")
+        os.makedirs(RESOLVE_SCRIPTS_DIR_FALLBACK, exist_ok=True)
+        return RESOLVE_SCRIPTS_DIR_FALLBACK
 
 
 def cmd_install_resolve(args):
@@ -527,7 +559,7 @@ def cmd_install_resolve(args):
         print(f"  Checked: {plugin_dir}")
         sys.exit(1)
 
-    os.makedirs(RESOLVE_SCRIPTS_DIR, exist_ok=True)
+    scripts_dir = _writable_scripts_dir()
 
     for script_name in RESOLVE_SCRIPT_NAMES:
         source = os.path.join(plugin_dir, script_name)
@@ -536,7 +568,7 @@ def cmd_install_resolve(args):
             continue
 
         menu_name = _resolve_menu_name(script_name)
-        dest = os.path.join(RESOLVE_SCRIPTS_DIR, menu_name)
+        dest = os.path.join(scripts_dir, menu_name)
 
         # Remove existing link/file
         if os.path.islink(dest) or os.path.exists(dest):
@@ -745,13 +777,28 @@ def cmd_uninstall_resolve(args):
         "Vit - Push.py",
         "Vit - Pull & Restore.py",
     ]
+    script_dirs = [RESOLVE_SCRIPTS_DIR]
+    if sys.platform == "win32":
+        script_dirs.append(RESOLVE_SCRIPTS_DIR_FALLBACK)
+        # Legacy location used by older installers (missing "Support" —
+        # Resolve never scanned it, but clean up stray copies)
+        script_dirs.append(os.path.join(
+            os.environ.get("APPDATA", ""),
+            "Blackmagic Design",
+            "DaVinci Resolve",
+            "Fusion",
+            "Scripts",
+            "Edit",
+        ))
+
     removed = 0
     for menu_name in _ALL_VIT_NAMES:
-        dest = os.path.join(RESOLVE_SCRIPTS_DIR, menu_name)
-        if os.path.islink(dest) or os.path.exists(dest):
-            os.remove(dest)
-            print(f"  Removed: {menu_name}")
-            removed += 1
+        for script_dir in script_dirs:
+            dest = os.path.join(script_dir, menu_name)
+            if os.path.islink(dest) or os.path.exists(dest):
+                os.remove(dest)
+                print(f"  Removed: {menu_name}")
+                removed += 1
 
     if removed:
         print(f"\n  Uninstalled {removed} scripts from Resolve.")
