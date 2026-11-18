@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import sys
+from typing import Optional
 
 from . import __version__
 from .core import (
@@ -41,9 +42,10 @@ from .json_writer import read_all_domain_files, write_timeline
 from .validator import format_issues, validate_project
 
 
-def _require_project() -> str:
+def _require_project(start_dir: Optional[str] = None) -> str:
     """Find the vit project root or exit with error."""
-    root = find_project_root()
+    start_dir = start_dir or os.environ.get("VIT_PROJECT_DIR")
+    root = find_project_root(start_dir)
     if root is None:
         print("Error: Not a vit project. Run 'vit init' first.")
         sys.exit(1)
@@ -362,11 +364,99 @@ def _detect_overlapping_domains(
     return overlapping
 
 
+def _read_journal_arg(value: Optional[str]):
+    """Load --journal: a JSON file, or '-' for stdin. Non-JSON is kept as text."""
+    if not value:
+        return None
+    if value == "-":
+        text = sys.stdin.read()
+    else:
+        with open(value) as f:
+            text = f.read()
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
+
+
+def cmd_snapshot(args):
+    """Record a timeline's state from outside Resolve and commit it."""
+    from .resolve_connect import ResolveConnectionError, connect, current_project
+    from .snapshot import SnapshotError, find_timeline, snapshot
+
+    project_dir = _require_project(args.project_dir)
+    try:
+        journal = _read_journal_arg(args.journal)
+        resolve = connect()
+        project = current_project(resolve)
+        timeline = find_timeline(project, args.timeline)
+        result = snapshot(
+            project_dir, timeline, project, args.message,
+            resolve_app=resolve, color=args.color, journal=journal,
+        )
+    except (ResolveConnectionError, SnapshotError, OSError) as e:
+        if args.json:
+            print(json.dumps({"error": str(e)}))
+        else:
+            print(f"Error: {e}")
+        sys.exit(1)
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return
+
+    print(f"  Timeline: {result['timeline']}  ({result['key']})")
+    if result["commit"]:
+        print(f"  Committed: {result['commit']}  {args.message}")
+    else:
+        print("  Nothing to commit — timeline unchanged.")
+    if result["domains_changed"]:
+        print(f"  Changed: {', '.join(result['domains_changed'])}")
+        print()
+        print(result["diff"])
+    if result["journal"]:
+        print(f"  Journal: {result['journal']}")
+    for issue in result["issues"]:
+        print(f"  ! {issue}")
+
+
+def cmd_timelines(args):
+    """List the timelines that have snapshots."""
+    from .snapshot import read_index
+
+    project_dir = _require_project(args.project_dir)
+    index = read_index(project_dir)
+    if args.json:
+        print(json.dumps(index, indent=2, sort_keys=True))
+        return
+    if not index:
+        print("  No snapshots yet. Run 'vit snapshot -m \"...\"'.")
+        return
+    for key, info in sorted(index.items(), key=lambda kv: kv[1].get("name", "")):
+        print(f"  {info.get('name', '')}  ({key})")
+
+
 def cmd_diff(args):
     """Show human-readable diff of timeline changes."""
-    project_dir = _require_project()
+    project_dir = _require_project(getattr(args, "project_dir", None))
 
     ref = args.ref or "HEAD"
+
+    if getattr(args, "timeline", None):
+        # One snapshotted timeline: its files on disk against the ref
+        from .snapshot import SnapshotError, diff_timeline, resolve_key
+        try:
+            key = resolve_key(project_dir, args.timeline)
+            text, changed = diff_timeline(project_dir, key, ref)
+        except SnapshotError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        if getattr(args, "json", False):
+            print(json.dumps({"key": key, "ref": ref,
+                              "domains_changed": changed, "diff": text}, indent=2))
+        else:
+            print(text)
+        return
 
     try:
         from .differ import diff_from_project
@@ -849,6 +939,9 @@ def main():
     # diff
     p_diff = subparsers.add_parser("diff", help="Show timeline changes")
     p_diff.add_argument("ref", nargs="?", help="Compare against ref (default: HEAD)")
+    p_diff.add_argument("--timeline", help="Diff one snapshotted timeline (name or key)")
+    p_diff.add_argument("--json", action="store_true", help="With --timeline: print as JSON")
+    p_diff.add_argument("-C", "--project-dir", help="Vit project (default: cwd or $VIT_PROJECT_DIR)")
     p_diff.set_defaults(func=cmd_diff)
 
     # log
@@ -876,6 +969,27 @@ def main():
     p_pull.add_argument("--remote", default="origin", help="Remote name")
     p_pull.add_argument("--branch", help="Branch to pull")
     p_pull.set_defaults(func=cmd_pull)
+
+    # snapshot
+    p_snap = subparsers.add_parser(
+        "snapshot",
+        help="Record a timeline from outside Resolve (audit trail; read-only)",
+    )
+    p_snap.add_argument("-m", "--message", required=True, help="What was done and why")
+    p_snap.add_argument("--timeline", help="Timeline name (default: the one open in Resolve)")
+    p_snap.add_argument("--color", action="store_true",
+                        help="Also export a LUT/DRX per clip (switches to the Color page)")
+    p_snap.add_argument("--journal", metavar="FILE",
+                        help="JSON record of what was asked for; '-' reads stdin")
+    p_snap.add_argument("--json", action="store_true", help="Print the result as JSON")
+    p_snap.add_argument("-C", "--project-dir", help="Vit project (default: cwd or $VIT_PROJECT_DIR)")
+    p_snap.set_defaults(func=cmd_snapshot)
+
+    # timelines
+    p_tls = subparsers.add_parser("timelines", help="List timelines that have snapshots")
+    p_tls.add_argument("--json", action="store_true", help="Print as JSON")
+    p_tls.add_argument("-C", "--project-dir", help="Vit project (default: cwd or $VIT_PROJECT_DIR)")
+    p_tls.set_defaults(func=cmd_timelines)
 
     # validate
     p_validate = subparsers.add_parser("validate", help="Validate timeline consistency")

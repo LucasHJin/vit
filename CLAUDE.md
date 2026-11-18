@@ -137,6 +137,12 @@ Flow: Try git merge → post-merge validation (validator.py) → if issues, send
 
 ---
 
+## Audit Snapshots
+
+`vit snapshot` (vit/snapshot.py, vit/resolve_connect.py) is a separate, read-only mode for recording what changed on a timeline from outside Resolve. It writes to `timelines/<key>/` and `journal/`, never to `timeline/`, and calls the serializer with `stable_ids=True, media_refs="path", capture_grades=False`. Those options default to the legacy behaviour; don't change the defaults, because the restore path depends on positional IDs and content hashes. **Details:** `@docs/SNAPSHOTS.md`
+
+---
+
 ## Storage Model
 
 **No database. No media storage.** JSON in git only. Media files stay on disk; `manifest.json` records paths/checksums. Git = persistence. Share via GitHub.

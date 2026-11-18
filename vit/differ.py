@@ -76,19 +76,52 @@ def diff_cuts(old: dict, new: dict, fps: float = 24.0) -> List[str]:
         old_item = old_items[item_id]
         new_item = new_items[item_id]
 
-        # Check trim changes
-        if old_item["record_start_frame"] != new_item["record_start_frame"]:
+        if old_item.get("name") != new_item.get("name"):
+            lines.append(
+                f"  ~ Renamed '{old_item.get('name')}' → '{new_item.get('name')}'"
+            )
+
+        d_start = new_item["record_start_frame"] - old_item["record_start_frame"]
+        d_end = new_item["record_end_frame"] - old_item["record_end_frame"]
+        old_src = (old_item.get("source_start_frame"), old_item.get("source_end_frame"))
+        new_src = (new_item.get("source_start_frame"), new_item.get("source_end_frame"))
+        src_known = None not in old_src and None not in new_src
+        src_changed = src_known and old_src != new_src
+
+        if d_start == d_end and d_start != 0 and not src_changed:
+            # Same length, same source range, new position: a move, not a trim
             old_tc = _frames_to_timecode(old_item["record_start_frame"], fps)
             new_tc = _frames_to_timecode(new_item["record_start_frame"], fps)
             lines.append(
-                f"  ~ Trimmed '{new_item['name']}' start: {old_tc} → {new_tc}"
+                f"  ~ Moved '{new_item['name']}': {old_tc} → {new_tc} ({d_start:+d}f)"
             )
-        if old_item["record_end_frame"] != new_item["record_end_frame"]:
-            old_tc = _frames_to_timecode(old_item["record_end_frame"], fps)
-            new_tc = _frames_to_timecode(new_item["record_end_frame"], fps)
-            lines.append(
-                f"  ~ Trimmed '{new_item['name']}' end: {old_tc} → {new_tc}"
-            )
+        else:
+            # Check trim changes
+            if d_start != 0:
+                old_tc = _frames_to_timecode(old_item["record_start_frame"], fps)
+                new_tc = _frames_to_timecode(new_item["record_start_frame"], fps)
+                lines.append(
+                    f"  ~ Trimmed '{new_item['name']}' start: {old_tc} → {new_tc}"
+                )
+            if d_end != 0:
+                old_tc = _frames_to_timecode(old_item["record_end_frame"], fps)
+                new_tc = _frames_to_timecode(new_item["record_end_frame"], fps)
+                lines.append(
+                    f"  ~ Trimmed '{new_item['name']}' end: {old_tc} → {new_tc}"
+                )
+            if src_changed and d_start == 0 and d_end == 0:
+                # Same place on the timeline, different part of the source
+                s_delta = new_src[0] - old_src[0]
+                if s_delta == new_src[1] - old_src[1]:
+                    lines.append(
+                        f"  ~ Slipped '{new_item['name']}': source {s_delta:+d}f "
+                        f"(in {old_src[0]} → {new_src[0]})"
+                    )
+                else:
+                    lines.append(
+                        f"  ~ Changed source range of '{new_item['name']}': "
+                        f"{old_src[0]}–{old_src[1]} → {new_src[0]}–{new_src[1]}"
+                    )
 
         # Check track move
         if old_item["track_index"] != new_item["track_index"]:

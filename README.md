@@ -153,6 +153,19 @@ vit log                         # version history
 | `vit push` / `vit pull` | Sync with a remote |
 | `vit status` | Show project status |
 
+## Audit Snapshots (headless)
+
+`vit snapshot` records a timeline from outside Resolve and commits it, so an assistant or script that changes a timeline leaves a readable record. It keeps a separate history per timeline, identifies clips by Resolve's unique ID, never hashes media, and never restores anything.
+
+```bash
+vit snapshot -m "before: tighten trims"
+# ... make the change ...
+vit snapshot -m "tighten trims on V1" --journal call.json --json
+vit diff --timeline "Promo – rough cut v1"
+```
+
+Needs Resolve Studio with external scripting set to Local. See [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md).
+
 ## Project Structure
 
 ```
