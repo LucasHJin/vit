@@ -4,7 +4,14 @@ Mimics the Resolve Python API so serializer/deserializer can be tested
 without a running Resolve instance.
 """
 
+import itertools
 import os
+
+_uid_counter = itertools.count(1)
+
+
+def _next_uid(prefix):
+    return f"{prefix}-{next(_uid_counter):04d}"
 
 
 class MockMediaPoolItem:
@@ -63,6 +70,10 @@ class MockTimelineItem:
         self._node_labels = node_labels or {}  # {node_index: label}
         self._node_luts = {}  # {node_index: lut_path}
         self._cdl = {}  # Last SetCDL() call stored here
+        self._uid = _next_uid("ti")
+
+    def GetUniqueId(self):
+        return self._uid
 
     def GetName(self):
         return self._name
@@ -127,6 +138,10 @@ class MockTimeline:
             "timelineResolutionHeight": "1080",
         }
         self._start_timecode = "01:00:00:00"
+        self._uid = _next_uid("tl")
+
+    def GetUniqueId(self):
+        return self._uid
 
     def GetName(self):
         return self._name
@@ -256,6 +271,17 @@ class MockProject:
     def SetCurrentTimeline(self, timeline):
         self._timeline = timeline
         return True
+
+    def _all_timelines(self):
+        others = [t for t in self._media_pool._timelines if t is not self._timeline]
+        return [self._timeline] + others
+
+    def GetTimelineCount(self):
+        return len(self._all_timelines())
+
+    def GetTimelineByIndex(self, idx):
+        timelines = self._all_timelines()
+        return timelines[idx - 1] if 1 <= idx <= len(timelines) else None
 
     def GetMediaPool(self):
         return self._media_pool

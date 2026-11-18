@@ -5,6 +5,7 @@ when scripts run from Workspace > Scripts menu.
 """
 
 import hashlib
+import json
 import os
 import time
 from typing import Dict, List, Optional, Tuple
@@ -27,17 +28,69 @@ from .models import (
 )
 
 
+# (path, size, mtime_ns) -> ref. Hashing camera originals is slow, and the same
+# source usually backs many timeline items, so never hash a file twice per run.
+_HASH_MEMO: Dict[Tuple[str, int, int], str] = {}
+
+
 def _compute_media_hash(filepath: str) -> str:
     """Compute SHA-256 hash of a media file for the asset manifest."""
+    try:
+        st = os.stat(filepath)
+        memo_key = (filepath, st.st_size, st.st_mtime_ns)
+    except OSError:
+        memo_key = None
+    if memo_key and memo_key in _HASH_MEMO:
+        return _HASH_MEMO[memo_key]
+
     sha = hashlib.sha256()
     try:
         with open(filepath, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
                 sha.update(chunk)
-        return f"sha256:{sha.hexdigest()[:12]}"
+        ref = f"sha256:{sha.hexdigest()[:12]}"
     except (OSError, IOError):
         # File may not be accessible — use path-based fallback
         return f"sha256:{hashlib.sha256(filepath.encode()).hexdigest()[:12]}"
+    if memo_key:
+        _HASH_MEMO[memo_key] = ref
+    return ref
+
+
+def _media_ref(filepath: str, mode: str = "content") -> str:
+    """Reference for a source file.
+
+    mode="content": SHA-256 of the file's bytes. Survives a move to another
+        machine, which the branch/merge workflow needs, but reads the whole file.
+    mode="path": hash of the file's path only. Reads nothing, so a snapshot
+        costs the same whether the timeline uses 10 minutes or 10 hours of
+        footage. Right for a local audit trail, where paths don't change.
+    """
+    if mode == "path":
+        norm = os.path.normcase(os.path.normpath(filepath))
+        return f"path:{hashlib.sha256(norm.encode()).hexdigest()[:12]}"
+    return _compute_media_hash(filepath)
+
+
+def _item_id(clip, prefix: str, track_idx: int, i: int, stable: bool = False) -> str:
+    """ID for a timeline item.
+
+    Positional by default (``item_001_003``): the restore path rebuilds
+    timelines, so position is the only identity that survives a checkout.
+
+    With stable=True, use Resolve's own unique ID for the item, so inserting
+    or removing a clip doesn't renumber every clip after it. Falls back to the
+    positional ID when the API doesn't offer one.
+    """
+    if stable:
+        try:
+            uid = clip.GetUniqueId()
+        except (AttributeError, TypeError):
+            uid = None
+        if uid:
+            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(uid))
+            return f"{prefix}_{safe}"
+    return f"{prefix}_{track_idx:03d}_{i:03d}"
 
 
 def _safe_float(clip, prop: str, default: float = 0.0) -> float:
@@ -286,7 +339,8 @@ def _export_fusion_comp(clip, item_id: str, project_dir: str) -> str:
     return ""
 
 
-def _serialize_video_tracks(timeline, project_dir: str = "") -> Tuple[List[VideoTrack], Dict[str, Asset]]:
+def _serialize_video_tracks(timeline, project_dir: str = "", stable_ids: bool = False,
+                            media_refs: str = "content") -> Tuple[List[VideoTrack], Dict[str, Asset]]:
     """Extract video tracks and build asset manifest."""
     video_tracks = []
     assets = {}
@@ -300,7 +354,7 @@ def _serialize_video_tracks(timeline, project_dir: str = "") -> Tuple[List[Video
             continue
 
         for i, clip in enumerate(clips):
-            item_id = f"item_{track_idx:03d}_{i:03d}"
+            item_id = _item_id(clip, "item", track_idx, i, stable_ids)
             clip_name = clip.GetName() or f"clip_{track_idx}_{i}"
 
             if _is_generator_clip(clip):
@@ -338,7 +392,7 @@ def _serialize_video_tracks(timeline, project_dir: str = "") -> Tuple[List[Video
                 media_path = ""
                 if media_pool_item:
                     media_path = media_pool_item.GetClipProperty("File Path") or ""
-                media_ref = _compute_media_hash(media_path) if media_path else f"sha256:unknown_{i}"
+                media_ref = _media_ref(media_path, media_refs) if media_path else f"sha256:unknown_{i}"
 
                 # Register asset
                 if media_path and media_ref not in assets:
@@ -376,7 +430,8 @@ def _serialize_video_tracks(timeline, project_dir: str = "") -> Tuple[List[Video
     return video_tracks, assets
 
 
-def _serialize_audio_tracks(timeline) -> List[AudioTrack]:
+def _serialize_audio_tracks(timeline, stable_ids: bool = False,
+                            media_refs: str = "content") -> List[AudioTrack]:
     """Extract audio tracks from Resolve timeline."""
     audio_tracks = []
     track_count = timeline.GetTrackCount("audio")
@@ -393,10 +448,10 @@ def _serialize_audio_tracks(timeline) -> List[AudioTrack]:
             media_path = ""
             if media_pool_item:
                 media_path = media_pool_item.GetClipProperty("File Path") or ""
-            media_ref = _compute_media_hash(media_path) if media_path else f"sha256:unknown_a{i}"
+            media_ref = _media_ref(media_path, media_refs) if media_path else f"sha256:unknown_a{i}"
 
             audio_item = AudioItem(
-                id=f"audio_{track_idx:03d}_{i:03d}",
+                id=_item_id(clip, "audio", track_idx, i, stable_ids),
                 media_ref=media_ref,
                 start_frame=int(clip.GetStart()),
                 end_frame=int(clip.GetEnd()),
@@ -599,7 +654,7 @@ def _read_clip_grade_info(clip) -> Tuple[int, List[ColorNodeGrade], str]:
 
 def _export_grade_stills(timeline, project, project_dir: str,
                          grades: Dict[str, ColorGrade],
-                         resolve_app=None) -> None:
+                         resolve_app=None, stable_ids: bool = False) -> None:
     """Export DRX grade stills for each clip.
 
     DRX (DaVinci Resolve eXchange) files contain the complete color grade:
@@ -661,7 +716,7 @@ def _export_grade_stills(timeline, project, project_dir: str,
             if drx_export_works is False:
                 break  # skip remaining clips once we know it's broken
 
-            item_id = f"item_{track_idx:03d}_{i:03d}"
+            item_id = _item_id(clip, "item", track_idx, i, stable_ids)
             try:
                 clip_start = clip.GetStart()
                 tc = _frame_to_tc(clip_start + 1, start_frame, start_tc, fps)
@@ -716,7 +771,7 @@ def _export_grade_stills(timeline, project, project_dir: str,
 
 def _export_grade_luts(timeline, project_dir: str,
                        grades: Dict[str, ColorGrade],
-                       resolve_app=None) -> None:
+                       resolve_app=None, stable_ids: bool = False) -> None:
     """Export each clip's color grade as a baked .cube LUT file.
 
     Uses TimelineItem.ExportLUT() which captures the complete visual result
@@ -763,7 +818,7 @@ def _export_grade_luts(timeline, project_dir: str,
             if lut_export_works is False:
                 break
 
-            item_id = f"item_{track_idx:03d}_{i:03d}"
+            item_id = _item_id(clip, "item", track_idx, i, stable_ids)
             cube_path = os.path.join(grades_dir, f"{item_id}.cube")
 
             # Check if ExportLUT method exists on this clip
@@ -797,9 +852,31 @@ def _export_grade_luts(timeline, project_dir: str,
             pass
 
 
+def _carry_forward_grade_files(project_dir: str, grades: Dict[str, ColorGrade]) -> None:
+    """Keep pointing at grade files from the last full colour capture.
+
+    Used when a snapshot skips the LUT/DRX export, so color.json doesn't
+    flip between "has a file" and "has none" from one snapshot to the next.
+    """
+    color_path = os.path.join(project_dir, "timeline", "color.json")
+    grades_dir = os.path.join(project_dir, "timeline", "grades")
+    try:
+        with open(color_path) as f:
+            previous = json.load(f).get("grades", {})
+    except (OSError, ValueError):
+        return
+    for item_id, grade in grades.items():
+        prev = previous.get(item_id) or {}
+        for attr in ("lut_file", "drx_file"):
+            name = prev.get(attr)
+            if name and os.path.exists(os.path.join(grades_dir, name)):
+                setattr(grade, attr, name)
+
+
 def _serialize_color(timeline, video_tracks: List[VideoTrack],
                      project=None, project_dir: str = "",
-                     resolve_app=None) -> Dict[str, ColorGrade]:
+                     resolve_app=None, stable_ids: bool = False,
+                     capture_grades: bool = True) -> Dict[str, ColorGrade]:
     """Extract color grading data per clip.
 
     Capture strategy (in order of fidelity):
@@ -807,6 +884,10 @@ def _serialize_color(timeline, video_tracks: List[VideoTrack],
       2. DRX grade stills for full node-level backup (Studio only)
       3. Node structure metadata (count, labels, tools) for diffs
       4. Clip-level adjustments via GetProperty() (Studio only)
+
+    Steps 1 and 2 switch Resolve to the Color page, and step 2 also moves the
+    playhead and grabs stills. Pass capture_grades=False to record only the
+    metadata (steps 3 and 4), which reads without touching the editor's UI.
     """
     grades = {}
     track_count = timeline.GetTrackCount("video")
@@ -817,7 +898,7 @@ def _serialize_color(timeline, video_tracks: List[VideoTrack],
             continue
 
         for i, clip in enumerate(clips):
-            item_id = f"item_{track_idx:03d}_{i:03d}"
+            item_id = _item_id(clip, "item", track_idx, i, stable_ids)
             num_nodes, nodes, version_name = _read_clip_grade_info(clip)
             grades[item_id] = ColorGrade(
                 num_nodes=num_nodes,
@@ -825,13 +906,19 @@ def _serialize_color(timeline, video_tracks: List[VideoTrack],
                 version_name=version_name,
             )
 
+    if not capture_grades:
+        if project_dir:
+            _carry_forward_grade_files(project_dir, grades)
+        return grades
+
     # Export baked LUT files (primary capture — works on Free)
     if project_dir:
-        _export_grade_luts(timeline, project_dir, grades, resolve_app)
+        _export_grade_luts(timeline, project_dir, grades, resolve_app, stable_ids)
 
     # Export DRX stills (secondary — Studio only, full fidelity)
     if project and project_dir:
-        _export_grade_stills(timeline, project, project_dir, grades, resolve_app)
+        _export_grade_stills(timeline, project, project_dir, grades, resolve_app,
+                             stable_ids)
 
     return grades
 
@@ -871,7 +958,9 @@ def _serialize_metadata(timeline, project) -> TimelineMetadata:
 
 
 def serialize_timeline(timeline, project, project_dir: str,
-                       resolve_app=None) -> Timeline:
+                       resolve_app=None, stable_ids: bool = False,
+                       media_refs: str = "content",
+                       capture_grades: bool = True) -> Timeline:
     """Serialize a DaVinci Resolve timeline into domain-split JSON files.
 
     Args:
@@ -880,14 +969,22 @@ def serialize_timeline(timeline, project, project_dir: str,
         project_dir: Path to the vit project directory
         resolve_app: Optional Resolve application object (for page switching
                      during DRX grade export). Pass the `resolve` global.
+        stable_ids: Identify clips by Resolve's unique item ID instead of by
+                    position. Use for audit snapshots; leave off for the
+                    branch/merge workflow, whose restore rebuilds timelines.
+        media_refs: "content" (hash the file) or "path" (hash the path only).
+        capture_grades: Export a LUT/DRX per clip. False records colour
+                    metadata only and leaves Resolve's page and playhead alone.
 
     Returns:
         Timeline dataclass with all extracted data
     """
-    video_tracks, assets = _serialize_video_tracks(timeline, project_dir)
-    audio_tracks = _serialize_audio_tracks(timeline)
+    video_tracks, assets = _serialize_video_tracks(timeline, project_dir,
+                                                   stable_ids, media_refs)
+    audio_tracks = _serialize_audio_tracks(timeline, stable_ids, media_refs)
     color_grades = _serialize_color(timeline, video_tracks, project,
-                                    project_dir, resolve_app)
+                                    project_dir, resolve_app, stable_ids,
+                                    capture_grades)
     markers = _serialize_markers(timeline)
     metadata = _serialize_metadata(timeline, project)
 
